@@ -8,11 +8,11 @@
 #include "tokens.hpp"
 #include "instructions.hpp"
 
-void yyrestart ( FILE *input_file  );
-int yylex (void);
+int yylex(void);
 extern int yyleng;
 extern char* yytext;
 extern int yylineno;
+void yyrestart(FILE *in);
 
 class {
 public:

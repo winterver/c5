@@ -31,6 +31,30 @@ void yyerror(const char* s);
 	/* single-character operators & symbols */
 [~!%^&*()-+={}\[\]|;:<>,./]			{ return *yytext; }
 
+	/* multi-character operators */
+"=="								{ return EQUAL; }
+"!="								{ return NOT_EQUAL; }
+">="								{ return GREATER_EQUAL; }
+"<="								{ return LESS_EQUAL; }
+"+="								{ return PLUS_ASSIGN; }
+"-="								{ return MINUS_ASSIGN; }
+"*="								{ return MUL_ASSIGN; }
+"/="								{ return DIV_ASSIGN; }
+"%="								{ return MOD_ASSIGN; }
+"&="								{ return AND_ASSIGN; }
+"|="								{ return OR_ASSIGN; }
+"^="								{ return NOT_ASSIGN; }
+"&&"								{ return LOGIC_AND; }
+"||"								{ return LOGIC_OR; }
+"<<"								{ return LSHIFT; }
+">>"								{ return RSHIFT; }
+"<<="								{ return LSHIFT_ASSIGN; }
+">>="								{ return RSHIFT_ASSIGN; }
+"++"								{ return INCREASE; }
+"--"								{ return DECREASE; }
+"->"								{ return ARROW; }
+"..."								{ return ELLIPSIS; }
+
 	/* comments & skips & error handle */
 "//".*								{ /* DO NOTHING */ }
 [ \r\t\n\v]							{ /* DO NOTHING */ }
