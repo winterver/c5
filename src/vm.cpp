@@ -99,22 +99,3 @@ void vm_t::exec()
 Exit:
 	return;
 }
-
-int main()
-{
-	image img;
-	img.fill_text(
-		JMP, u32(18),
-		IMD, i32(123),
-		PUQ,
-		IMD, i32(-110),
-		MUL,
-		RET,
-		CAL, u32(5),
-		PRTF,
-		EXIT
-	);
-
-	vm_t vm(img);
-	vm.exec();
-}
