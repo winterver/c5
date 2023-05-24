@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "vm.hpp"
 #include "image.hpp"
+#include "instructions.hpp"
 
 vm_t::vm_t(image& img, int stack_size_kb)
 	: text(img.get_text())
