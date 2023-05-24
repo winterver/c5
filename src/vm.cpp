@@ -2,9 +2,11 @@
 #include "vm.hpp"
 
 vm_t::vm_t(int text_size_kb, 
-		int stack_size_kb)
+		int stack_size_kb,
+		int data_size_kb)
 	: text(new u8[text_size_kb * 1024])
 	, stack(new u8[stack_size_kb * 1024])
+	, data(new u8[data_size_kb * 1024])
 {
 	op = text;
 	// stacks grow downward, so add its size
@@ -14,8 +16,9 @@ vm_t::vm_t(int text_size_kb,
 
 vm_t::~vm_t()
 {
-	delete text;
-	delete stack;
+	delete[] text;
+	delete[] stack;
+	delete[] data;
 }
 
 void vm_t::exec()
@@ -29,20 +32,26 @@ void vm_t::exec()
 		case EXIT: goto Exit;
 		case PRTF: printf("%d\n", (i32)acc); break;
 
-		case IMB: acc = next<u8>(); break;
-		case IMW: acc = next<u16>(); break;
-		case IMD: acc = next<u32>(); break;
-		case IMQ: acc = next<u64>(); break;
-		case LOB: acc = *ptr8; break;
-		case LOW: acc = *ptr16; break;
-		case LOD: acc = *ptr32; break;
-		case LOQ: acc = *ptr64; break;
-		case STB: *ptr8 = pop<u64>(); break;
-		case STW: *ptr16 = pop<u64>(); break;
-		case STD: *ptr32 = pop<u64>(); break;
-		case STQ: *ptr64 = pop<u64>(); break;
-		case PUSH: push<u64>(acc); break;
-		case POP: acc = pop<u64>(); break;
+		case IMB: acc = next<i8>(); break;
+		case IMW: acc = next<i16>(); break;
+		case IMD: acc = next<i32>(); break;
+		case IMQ: acc = next<i64>(); break;
+		case LOB: acc = deref<i8>(); break;
+		case LOW: acc = deref<i16>(); break;
+		case LOD: acc = deref<i32>(); break;
+		case LOQ: acc = deref<i64>(); break;
+		case STB: deref<i8>() = pop<i8>(); break;
+		case STW: deref<i16>() = pop<i16>(); break;
+		case STD: deref<i32>() = pop<i32>(); break;
+		case STQ: deref<i64>() = pop<i64>(); break;
+		case PUB: push<i8>(acc); break;
+		case PUW: push<i16>(acc); break;
+		case PUD: push<i32>(acc); break;
+		case PUQ: push<i64>(acc); break;
+		case POB: acc = pop<i8>(); break;
+		case POW: acc = pop<i16>(); break;
+		case POD: acc = pop<i32>(); break;
+		case POQ: acc = pop<i64>(); break;
 
 		case JMP: op = text + next<u32>(); break;
 		case BNZ: if(acc) op += next<i32>(); else next<i32>(); break;
@@ -58,29 +67,35 @@ void vm_t::exec()
 				  bp = stack + pop<u32>();			// pop ebp
 				  op = text + pop<u32>();			// pop eip
 				  break;
-		case ADS: sp += next<i32>(); break;
-		case LEA: acc = (u64)(bp + next<i32>()); break;	
+		case ADS: sp += next<i16>(); break;
+		case LEA: acc = (u64)(bp + next<i16>()); break;	
 
-		case ADD: acc += pop<u64>(); break;
-		case SUB: acc -= pop<u64>(); break;
+		case ADD: acc += pop<i64>(); break;
+		case SUB: acc -= pop<i64>(); break;
 		
-		case MUL: acc = (i64)acc * pop<i64>(); break;
-		case DIV: acc = (i64)acc / pop<i64>(); break;
-		case MOD: acc = (i64)acc % pop<i64>(); break;
+		case MUL: acc *= pop<i64>(); break;
+		case DIV: acc /= pop<i64>(); break;
+		case MOD: acc %= pop<i64>(); break;
 		
-		case AND: acc = (i64)acc & pop<i64>(); break;
-		case OR: acc = (i64)acc | pop<i64>(); break;
-		case XOR: acc = (i64)acc ^ pop<i64>(); break;
+		case AND: acc &= pop<i64>(); break;
+		case OR: acc |= pop<i64>(); break;
+		case XOR: acc ^= pop<i64>(); break;
 
 		case INC: acc++; break;
 		case DEC: acc--; break;
-		case NEG: acc = -(i64)acc; break;	
+		case NEG: acc = -acc; break;	
 		
 		case NOT: acc = ~acc; break;
 
-		case LAN: acc = acc && pop<u64>(); break;
-		case LOR: acc = acc || pop<u64>(); break;
+		case LAN: acc = acc && pop<i64>(); break;
+		case LOR: acc = acc || pop<i64>(); break;
 		case LNO: acc = !acc; break;
+
+		case EQ: acc = acc == pop<i64>();
+		case GT: acc = acc > pop<i64>();
+		case LT: acc = acc < pop<i64>();
+		case GE: acc = acc >= pop<i64>();
+		case LE: acc = acc <= pop<i64>();
 		}
 	}
 Exit:
@@ -92,13 +107,13 @@ int main()
 	vm_t vm;
 
 	vm.fill(
-		JMP, 18_u32,
-		IMD, 123_i32,
-		PUSH,
-		IMD, -110_i32,
+		JMP, u32(18),
+		IMD, i32(123),
+		PUQ,
+		IMD, i32(-110),
 		MUL,
 		RET,
-		CAL, 5_u32,
+		CAL, u32(5),
 		PRTF,
 		EXIT
 	);

@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <assert.h>
 
 typedef int8_t i8;
 typedef int16_t i16;
@@ -9,11 +10,6 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
-#define UDL(t) inline t operator ""_##t(unsigned long long int x) \
-	{ return (t)x; }
-UDL(i8); UDL(i16); UDL(i32); UDL(i64);
-UDL(u8); UDL(u16); UDL(u32); UDL(u64);
-#undef UDL
 
 enum op_t : u8 {
 	EXIT,
@@ -35,8 +31,14 @@ enum op_t : u8 {
 	STW, 
 	STD, 
 	STQ, 
-	PUSH, 
-	POP, 
+	PUB, 
+	PUW, 
+	PUD, 
+	PUQ, 
+	POB, 
+	POW, 
+	POD, 
+	POQ, 
 	
 	JMP, 
 	BNZ, 
@@ -47,10 +49,8 @@ enum op_t : u8 {
 	ADS, // add to stack
 	LEA,	
 
-	// ADd SUb MUltiply DIvide MOd ANd OR XOr
 	ADD, 
 	SUB, 
-
 	MUL,
 	DIV,
 	MOD,
@@ -70,19 +70,37 @@ enum op_t : u8 {
 	LAN, // logic ANd
 	LOR, // logic OR
 	LNO, // logic NOt
+	
+	// comparison operators
+	EQ,
+	GT,
+	LT,
+	GE,
+	LE,
 };
 
 class vm_t
 {
 public:
-	vm_t(int text_size_kb = 48, 
-		int stack_size_kb = 16);
+	vm_t(int text_size_kb = 32, 
+		int stack_size_kb = 16,
+		int data_size_kb = 16);
 	~vm_t();
 	
 	void exec();
 
 	template<typename T>
-	void push(T t) { sp -= sizeof(T); *(T*)sp = t; }
+	T& deref() {
+		assert((acc != 0) && "virtual machine: null pointer dereference");
+		return *(T*)acc;
+	}
+
+	template<typename T>
+	void push(T t) { 
+		sp -= sizeof(T);
+		assert((sp >= stack) && "virtual machine: stack overflow");
+		*(T*)sp = t; 
+	}
 	template<typename T>
 	T pop() { T t = *(T*)sp; sp += sizeof(T); return t; }
 	template<typename T>
@@ -98,14 +116,11 @@ public:
 public:
 	u8* const text;
 	u8* const stack;
+	u8* const data;
 
 	// registers
 	u8* op;		// program counter
-	u64 acc;	// accumulator	
-#define ptr8 ((u8*)acc)
-#define ptr16 ((u16*)acc)
-#define ptr32 ((u32*)acc)
-#define ptr64 ((u64*)acc)
+	i64 acc;	// accumulator	
 	// float register
 	union {
 		float flt32;
