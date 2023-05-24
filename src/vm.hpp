@@ -1,15 +1,6 @@
 #pragma once
-#include <stdint.h>
 #include <assert.h>
-
-typedef int8_t i8;
-typedef int16_t i16;
-typedef int32_t i32;
-typedef int64_t i64;
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
+#include "types.hpp"
 
 enum op_t : u8 {
 	EXIT,
@@ -79,12 +70,12 @@ enum op_t : u8 {
 	LE,
 };
 
+class image;
+
 class vm_t
 {
 public:
-	vm_t(int text_size_kb = 32, 
-		int stack_size_kb = 16,
-		int data_size_kb = 16);
+	vm_t(image& img, int stack_size_kb = 16);
 	~vm_t();
 	
 	void exec();
@@ -104,14 +95,7 @@ public:
 	template<typename T>
 	T pop() { T t = *(T*)sp; sp += sizeof(T); return t; }
 	template<typename T>
-	T next() { T t = *(T*)op; op += sizeof(T); return t; }
-	
-	template<typename T, typename... Ts>
-	void fill(T t, Ts... ts) { fill(t); fill(ts...); }
-	void fill(op_t o) { *(op_t*)op = o; op += sizeof(op_t); }
-	void fill(u32 o) { *(u32*)op = o; op += 4; }
-	void fill(i32 o) { *(i32*)op = o; op += 4; }
-	void fill() { }	
+	T next() { T t = *(T*)op; op += sizeof(T); return t; }	
 
 public:
 	u8* const text;
@@ -122,10 +106,10 @@ public:
 	u8* op;		// program counter
 	i64 acc;	// accumulator	
 	// float register
-	union {
-		float flt32;
-		double flt64;
-	};
+	//union {
+	//	float flt32;
+	//	double flt64;
+	//};
 	// stack pointers
 	u8* sp; 
 	u8* bp;	

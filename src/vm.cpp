@@ -1,12 +1,11 @@
 #include <stdio.h>
 #include "vm.hpp"
+#include "image.hpp"
 
-vm_t::vm_t(int text_size_kb, 
-		int stack_size_kb,
-		int data_size_kb)
-	: text(new u8[text_size_kb * 1024])
+vm_t::vm_t(image& img, int stack_size_kb)
+	: text(img.get_text())
+	, data(img.get_data())
 	, stack(new u8[stack_size_kb * 1024])
-	, data(new u8[data_size_kb * 1024])
 {
 	op = text;
 	// stacks grow downward, so add its size
@@ -16,9 +15,7 @@ vm_t::vm_t(int text_size_kb,
 
 vm_t::~vm_t()
 {
-	delete[] text;
 	delete[] stack;
-	delete[] data;
 }
 
 void vm_t::exec()
@@ -104,9 +101,8 @@ Exit:
 
 int main()
 {
-	vm_t vm;
-
-	vm.fill(
+	image img;
+	img.fill_text(
 		JMP, u32(18),
 		IMD, i32(123),
 		PUQ,
@@ -117,7 +113,7 @@ int main()
 		PRTF,
 		EXIT
 	);
-	
-	vm.op = vm.text;
+
+	vm_t vm(img);
 	vm.exec();
 }
