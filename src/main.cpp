@@ -37,8 +37,9 @@ void tokenize(std::vector<token>& toks, FILE* in = stdin)
 	yyrestart(in);
 	while(true)
 	{
-		struct token tok = { };
+		token tok = { };
 		tok.tok = yylex();
+		tok.lineno = yylineno;
 
 		switch(tok.tok)
 		{
@@ -66,9 +67,8 @@ int main()
 
 	for(auto t : toks)
 	{
-		printf("%d\n", t.tok);
+		printf("%d: %d\n", t.lineno, t.tok);
 	}
-
 	/*
 	image img;
 	img.fill_text(

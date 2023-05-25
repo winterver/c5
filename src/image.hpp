@@ -2,6 +2,16 @@
 #include <vector>
 #include "types.hpp"
 
+class buffer : public std::vector<u8>
+{
+public:
+	template<typename T, typename... Ts>
+	void fill(T t, Ts... ts) { fill(t); fill(ts...); }
+	template<typename T>
+	void fill(T t) { insert(end(), (u8*)&t, (u8*)&t + sizeof(T)); }	
+	void fill(buffer& buf) { insert(end(), buf.begin(), buf.end()); }
+};
+
 // executable image for vm_t
 class image
 {
@@ -14,37 +24,12 @@ public:
 	u8* get_text() { return text.data(); }
 	u8* get_data() { return data.data(); }
 	
-	template<typename T, typename... Ts>
-	void fill_text(T t, Ts... ts) { fill_text(t); fill_text(ts...); }
-	template<typename T>
-	void fill_text(T t) { add_text<T>(t); }
-
-	template<typename T, typename... Ts>
-	void fill_data(T t, Ts... ts) { fill_data(t); fill_data(ts...); }
-	template<typename T>
-	void fill_data(T t) { add_data<T>(t); }
+	template<typename... Ts>
+	void fill_text(Ts... ts) { text.fill(ts...); }
+	template<typename... Ts>
+	void fill_data(Ts... ts) { data.fill(ts...); }
 
 private:
-	template<typename T>
-	void add_text(T t)
-	{
-		u8* b = (u8*)&t;
-		for(int i = 0; i < sizeof(T); i++)
-		{
-			text.push_back(b[i]);
-		}
-	}
-	template<typename T>
-	void add_data(T t)
-	{
-		u8* b = (u8*)&t;
-		for(int i = 0; i < sizeof(T); i++)
-		{
-			data.push_back(b[i]);
-		}
-	}
-
-private:
-	std::vector<u8> text;
-	std::vector<u8> data;
+	buffer text;
+	buffer data;
 };
