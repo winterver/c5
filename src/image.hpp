@@ -29,7 +29,7 @@ public:
 	template<typename... Ts>
 	void fill_data(Ts... ts) { data.fill(ts...); }
 
-private:
+public:
 	buffer text;
 	buffer data;
 };

@@ -1,4 +1,5 @@
 #pragma once
+#include <vector>
 
 struct token
 {
@@ -11,6 +12,24 @@ struct token
 	};
 };
 
+struct param
+{
+	int type;
+	char* struct_name;
+	int depth;
+	char* name;
+};
+
+struct function
+{
+	int type;
+	char* struct_name;
+	int depth;
+	char* name;
+	std::vector<param> params;
+	int addr;
+};
+
 class image;
 
 class parser
@@ -18,15 +37,22 @@ class parser
 public:
 	parser(image& img, struct token* tok);
 
+	void parse();
+
 private:
 	void error(const char* errmsg);
+
+	struct token* tok;
+	function* curfunc;
 
 	int token();
 	void match(int t);
 
-private:
-	struct token* tok;
+	void program();
+	void paramlist(std::vector<param>& params);
+	void block();
 
-private:
+public:
 	image& img;
+	std::vector<function> funcs;
 };

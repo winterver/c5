@@ -65,10 +65,27 @@ int main()
 	std::vector<token> toks;
 	tokenize(toks);
 
+	/*
 	for(auto t : toks)
 	{
 		printf("%d: %d\n", t.lineno, t.tok);
 	}
+	*/
+	
+	image img;
+	parser pr(img, toks.data());
+	pr.parse();
+
+	for(auto& x : pr.funcs)
+	{
+		printf("%d %d* %s(", x.type, x.depth, x.name);
+		for(auto& p : x.params)
+		{
+			printf("%d %d* %s, ", p.type, p.depth, p.name);
+		}
+		printf(") = %d\n", x.addr);
+	}
+
 	/*
 	image img;
 	img.fill_text(
