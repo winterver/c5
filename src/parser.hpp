@@ -30,6 +30,7 @@ struct function
 	int addr;
 };
 
+class buffer;
 class image;
 
 class parser
