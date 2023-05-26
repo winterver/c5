@@ -37,6 +37,7 @@ enum op_t : u8 {
 
 	ADS, // add to stack
 	LEA,	
+	GLO,
 
 	ADD, 
 	SUB, 

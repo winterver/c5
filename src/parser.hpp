@@ -26,6 +26,7 @@ struct param
 {
 	typeinfo tinfo;
 	char* name;
+	int addr;
 };
 
 class param_set : public std::vector<param>
@@ -54,7 +55,11 @@ struct variable
 class variable_set : public std::vector<variable>
 {
 public:
-	variable* get(char* name);
+	variable_set* const parent;
+
+	variable_set(variable_set* parent = nullptr);
+	variable* get(char* name); // doesn't search parent
+	variable* search(char* name); // searches parent
 };
 
 class function_set : public std::vector<function>
@@ -75,11 +80,23 @@ public:
 
 private:
 	void error(const char* errmsg);
+	void get_variable(char* name, int& addr, int& clazz); 
+		// helper function
+		// clazz = 0, not found
+		// clazz = 1, local
+		// clazz = 2, param
+		// clazz = 3, global
+
+	void access(char* name, int& size); 
+		// load the address of specified variable
 
 	struct token* tok;
-	function* curfunc;
-	typeinfo tinfo;
-	param_set params;
+	typeinfo tinfo; // updated after a call to type()
+	param_set params; // updated after a call to paramlist()
+	function* curfunc; // updated after parsing a function signature	
+	variable_set* curlocal;
+	int localoffset; // an offset relative bp, where the latest local
+					 // variable should be placed
 
 	int token();
 	void match(int t);
@@ -88,10 +105,17 @@ private:
 	void type();
 	void depth();
 	void structdef();
-	void funcdef();
 	void gvardef();
+	void funcdef();
 	void paramlist();
 	void block();
+	void lvardef();
+	void assign();
+	void call();
+	void expression(buffer& buf);
+	void term1(buffer& buf);
+	void term2(buffer& buf);
+	void factor(buffer& buf);
 
 public:
 	image& img;

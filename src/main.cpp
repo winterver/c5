@@ -61,6 +61,7 @@ int main()
 	parser pr(img, toks.data());
 	pr.parse();
 
+	/*
 	for(auto&x : pr.gvars)
 	{
 		printf("%d %d* %s, addr = %d\n", 
@@ -77,9 +78,14 @@ int main()
 		printf("), addr = %d\n", x.addr);
 	}
 
-	/*
-	image img;
-	img.fill_text(
+	for(u8 x : img.text)
+	{
+		printf("%02X ", x);
+	}
+	*/
+
+	/*image img2;
+	img2.fill_text(
 		JMP, u32(18),
 		IMD, i32(123),
 		PUQ,
@@ -89,9 +95,8 @@ int main()
 		CAL, u32(5),
 		PRTF,
 		EXIT
-	);
+	);*/
 
 	vm_t vm(img);
 	vm.exec();
-	*/
 }

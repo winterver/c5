@@ -10,7 +10,9 @@ enum {
 	LONG, 
 	FLOAT, 
 	DOUBLE, 
+	// keywords
 	STRUCT,
+	RETURN,
 	// identifier & literals
 	IDENTIFIER, 
 	NUMBER, 

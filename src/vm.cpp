@@ -67,6 +67,7 @@ void vm_t::exec()
 				  break;
 		case ADS: sp += next<i16>(); break;
 		case LEA: acc = (u64)(bp + next<i16>()); break;	
+		case GLO: acc = (u64)(data + next<u16>()); break;
 
 		case ADD: acc += pop<i64>(); break;
 		case SUB: acc -= pop<i64>(); break;

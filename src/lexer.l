@@ -13,13 +13,15 @@ void yyerror(const char* s);
 
 %%
 
-	/* primitives & struct */
+	/* primitives */
 "void"								{ return VOID; }
 "char"								{ return CHAR; }
 "short"								{ return SHORT; }
 "int"								{ return INT; }
 "long"								{ return LONG; }
+	/* keywords */
 "struct"							{ return STRUCT; }
+"return"							{ return RETURN; }
 
 [a-zA-Z_][a-zA-Z_0-9]*				{ return IDENTIFIER; }
 0|[1-9][0-9]*						{ return NUMBER; }
