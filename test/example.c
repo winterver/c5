@@ -7,7 +7,7 @@ int mul(int a, int b)
 	return a*b;
 }
 
-long mxl()
+void mxl()
 {
 }
 

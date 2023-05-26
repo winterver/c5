@@ -259,6 +259,7 @@ void parser::type()
 {
 	switch(token())
 	{
+	case VOID:
 	case CHAR:
 	case SHORT:
 	case INT:
@@ -619,7 +620,7 @@ void parser::call(buffer& buf)
 	if (curfunc == nullptr)
 	{
 		error("function not found");
-	}
+	}	
 
 	if (curfunc->addr == -1)
 	{
@@ -635,12 +636,22 @@ void parser::call(buffer& buf)
 	if (npassed < curfunc->params.size())
 	{
 		error("too few arguments");
-	}
+	}	
 
 	buf.fill(
 		CAL, u32(curfunc->addr), 
 		ADS, i16(call_stack_size)
 	);
+
+	// curfunc is a forward declaration
+	// its implementation will be found later
+	// add it to the resolve list
+	/*if (curfunc->addr == -1)
+	{
+		// TODO add to the resolve list
+		// 因为用了独立buffer的缘故
+		// CAL的operand在text内的位置很难计算。。。
+	}*/
 }
 
 void parser::arglist(buffer& _buf)
