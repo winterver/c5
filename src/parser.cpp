@@ -8,13 +8,6 @@
 #include "string_pool.hpp"
 #include "instructions.hpp"
 
-typeinfo::typeinfo(int type, char* struct_name, int depth)
-	: type(type), depth(depth) 
-{
-	this->struct_name = type == STRUCT 
-		? struct_name : nullptr;
-}
-
 bool typeinfo::operator==(typeinfo& rhs)
 {
 	return (type == rhs.type
@@ -25,6 +18,49 @@ bool typeinfo::operator==(typeinfo& rhs)
 bool typeinfo::operator!=(typeinfo& rhs)
 {
 	return !this->operator==(rhs);
+}
+
+param* param_set::get(char* name)
+{
+	auto r = std::find_if(begin(), end(),
+		[name] (auto& x) { return name == x.name; });
+	return r != end() ? &(*r) : nullptr;
+}
+
+bool param_set::operator==(param_set& rhs)
+{
+	if (size() != rhs.size())
+	{
+		return false;
+	}
+
+	for(int i = 0; i < size(); i++)
+	{
+		if (at(i).tinfo != rhs[i].tinfo)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+bool param_set::operator!=(param_set& rhs)
+{
+	return !this->operator==(rhs);
+}
+
+variable* variable_set::get(char* name)
+{
+	auto r = std::find_if(begin(), end(),
+		[name] (auto& x) { return name == x.name; });
+	return r != end() ? &(*r) : nullptr;
+}
+
+function* function_set::get(char* name)
+{
+	auto r = std::find_if(begin(), end(),
+		[name] (auto& x) { return name == x.name; });
+	return r != end() ? &(*r) : nullptr;
 }
 
 parser::parser(image& img, struct token* tok)
@@ -84,253 +120,215 @@ void parser::program()
 {
 	while(token())
 	{
-		int type;
-		char* struct_name = nullptr;
-		int depth;
-
-		// match a type or struct definition
-		switch(token())
-		{
-		case CHAR:
-		case SHORT:
-		case INT:
-		case LONG:
-			type = token();
-			match(type);
-			break;
-		case STRUCT:
-			{
-				type = STRUCT;
-				match(STRUCT);
-				struct_name = tok->sval;
-				match(IDENTIFIER);
-				// process struct definition
-				if (token() == '{')
-				{
-					match('{');
-					// TODO process struct body
-					match('}');
-					match(';');
-					// next round
-					continue;
-				}
-				// TODO register struct
-			}	
-			break;
-		default:
-			error("top-level can only contain "
-				"vardef, funcdecl, funcdef or structdef");
-		}
-
-		// get the depth of the pointer
-		// 0 indicates that it's not a pointer
-		for(depth = 0; token() == '*'; depth++)
-		{
-			match('*');
-		}
-
-		// name of the variable or function
-		char* name = tok->sval;
+		struct token* prev = tok;
+		type();
+		depth();
 		match(IDENTIFIER);
+		int next = token();
+		tok = prev;
 
-		// if it's a function
-		if (token() == '(')
+		if (next == '{')
 		{
-			// match parameter list
-			std::vector<param> params;
-			paramlist(params);
-
-			function func;	
-			func.tinfo = typeinfo(type, struct_name, depth);
-			func.name = name;
-			func.params = params;
-			func.addr = -1; // -1 indicates forward declaration
-
-			// check if the declaration already exists,
-			function* decl = funcs.get(func.name);
-
-			// function to compare parameter list
-			auto compare = [](
-				std::vector<param>& p1,
-				std::vector<param>& p2
-			)
-			{
-				if (p1.size() != p2.size())
-				{
-					return false;
-				}
-
-				int size = p1.size();
-				for(int i = 0; i < size; i++)
-				{
-					if (p1[i].tinfo != p2[i].tinfo)
-					{
-						return false;
-					}
-				}
-				return true;
-			};
-
-			// if yes, check if both declaration are the same
-			if (decl != nullptr)
-			{	
-				if (decl->tinfo != func.tinfo
-					|| !compare(decl->params, func.params))
-				{
-					error("declaration mismatch");
-				}
-			}
-
-			// if it's a function definition
-			if (token() == '{')
-			{
-				if (decl != nullptr)
-				{
-					// check if the found declaration
-					// has function body
-					if (decl->addr != -1)
-					{
-						error("function redefinition");
-					}
-				}
-
-				// get start address of the function body
-				func.addr = img.text.size();
-
-				// register/update function info
-				if (decl == nullptr)
-				{
-					funcs.push_back(func);
-				}
-				else
-				{
-					decl->addr = func.addr;
-					// update parameter names
-					decl->params = std::move(func.params);
-				}
-				
-				// parse function body
-				curfunc = &func;
-				block();	
-			}
-			else
-			{
-				// else it's a forward declaration
-				match(';');
-
-				if (decl == nullptr)
-				{
-					funcs.push_back(func);
-				}
-			}
+			structdef();
+		}
+		else if (next == '(')
+		{
+			funcdef();
 		}
 		else
 		{
-			// else it's a global variable
-		NextVar:	
-			variable var;
-			var.tinfo = typeinfo(type, struct_name, depth);
-			var.name = name;	
-
-			if (gvars.get(var.name))
-			{
-				error("global variable redefinition");
-			}
-			else
-			{
-				// alloc memory for the variable in data
-				var.addr = img.data.size();
-				// TODO support initialization
-				// TODO support struct & string & array & float
-				if (var.tinfo.depth == 0)
-				{
-					switch(var.tinfo.type)
-					{
-					case CHAR: img.fill_data(i8()); break;
-					case SHORT: img.fill_data(i16()); break;
-					case INT: img.fill_data(i32()); break;
-					case LONG: img.fill_data(i64()); break;
-					default: error("unsupported type"); break;
-					}
-				}
-				else
-				{
-					img.fill_data(u64());
-				}
-				gvars.push_back(var);
-			}
-			
-			if (token() == ',')
-			{
-				match(',');
-
-				for(depth = 0; token() == '*'; depth++)
-				{
-					match('*');
-				}
-
-				name = tok->sval;
-				match(IDENTIFIER);
-
-				goto NextVar;	
-			}
-			match(';');
-		}
+			gvardef();
+		}	
 	}
 }
 
-void parser::paramlist(std::vector<param>& params)
+void parser::type()
 {
-	match('(');
-
-	if (token() == ')')
-	{
-		match(')');
-		return;
-	}
-
-	// type of the current param
-	int type;
-	char* struct_name = nullptr;
-	int depth;
-	// name of the parameter
-	char* name;
-
-NextParam:
-	// match a type
 	switch(token())
 	{
 	case CHAR:
 	case SHORT:
 	case INT:
 	case LONG:
-		type = token();
-		match(type);
+		tinfo.type = token();
+		match(tinfo.type);
+		tinfo.struct_name = nullptr;
 		break;
 	case STRUCT:
-		type = STRUCT;
+		tinfo.type = STRUCT;
 		match(STRUCT);
-		struct_name = tok->sval;
-		match(IDENTIFIER);	
+		tinfo.struct_name = tok->sval;
+		match(IDENTIFIER);
 		break;
 	default:
-		error("a type name needed");
+		error("a type needed");
 	}
+}
 
-	// get the depth of the pointer
-	// 0 indicates that it's not a pointer
-	for(depth = 0; token() == '*'; depth++)
+void parser::depth()
+{
+	for(tinfo.depth = 0; token() == '*'; tinfo.depth++)
 	{
 		match('*');
 	}
+}
 
-	name = tok->sval;
+void parser::structdef()
+{
+	match(STRUCT);
+	match(IDENTIFIER);
+	match('{');
+	match('}');
+	match(';');
+}
+
+void parser::funcdef()
+{
+	type();
+	depth();
+	typeinfo ret_type = tinfo;
+	char* name = tok->sval;
+	match(IDENTIFIER);
+	paramlist();
+
+	function func;	
+	func.tinfo = tinfo;
+	func.name = name;
+	func.params = params;
+	func.addr = -1; // -1 indicates forward declaration
+
+	// check if the declaration already exists,
+	function* decl = funcs.get(name);
+
+	// if yes, check if both declaration are the same
+	if (decl != nullptr)
+	{	
+		if (decl->tinfo != func.tinfo
+			|| decl->params != func.params)
+		{
+			error("declaration mismatch");
+		}
+	}
+
+	// if it's a function definition
+	if (token() == '{')
+	{
+		if (decl != nullptr)
+		{
+			// check if the found declaration
+			// has function body
+			if (decl->addr != -1)
+			{
+				error("function redefinition");
+			}
+		}
+
+		// get start address of the function body
+		func.addr = img.text.size();
+
+		// register/update function info
+		if (decl == nullptr)
+		{
+			funcs.push_back(func);
+		}
+		else
+		{
+			decl->addr = func.addr;
+			// update parameter names
+			decl->params = std::move(func.params);
+		}
+		
+		// parse function body
+		curfunc = &func;
+		block();	
+	}
+	else
+	{
+		// else it's a forward declaration
+		match(';');
+
+		if (decl == nullptr)
+		{
+			funcs.push_back(func);
+		}
+	}	
+}
+
+void parser::gvardef()
+{
+	type();
+
+NextVar:
+	depth();
+	char* name = tok->sval;
+	match(IDENTIFIER);
+
+	variable var;
+	var.tinfo = tinfo;
+	var.name = name;	
+
+	if (gvars.get(var.name))
+	{
+		error("global variable redefinition");
+	}
+	else
+	{
+		// alloc memory for the variable in data
+		var.addr = img.data.size();
+		// TODO support initialization
+		// TODO support struct & string & array & float
+		if (var.tinfo.depth == 0)
+		{
+			switch(var.tinfo.type)
+			{
+			case CHAR: img.fill_data(i8()); break;
+			case SHORT: img.fill_data(i16()); break;
+			case INT: img.fill_data(i32()); break;
+			case LONG: img.fill_data(i64()); break;
+			default: error("unsupported type"); break;
+			}
+		}
+		else
+		{
+			img.fill_data(u64());
+		}
+		gvars.push_back(var);
+	}
+	
+	if (token() == ',')
+	{
+		match(',');	
+		goto NextVar;	
+	}
+	match(';');
+}
+
+void parser::paramlist()
+{
+	params.clear();
+
+	match('(');
+
+	if (token() == ')')
+	{
+		match(')');
+		return;
+	}	
+
+NextParam:	
+	type();
+	depth();
+	char* name = tok->sval;
 	match(IDENTIFIER);
 
 	param p;
-	p.tinfo = typeinfo(type, struct_name, depth);
+	p.tinfo = tinfo;
 	p.name = name;
 
+	if (params.get(p.name))
+	{
+		error("local variable redefinition");
+	}
 	params.push_back(p);
 
 	if (token() == ',')

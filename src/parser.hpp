@@ -18,8 +18,6 @@ struct typeinfo
 	char* struct_name;
 	int depth;
 
-	typeinfo() { }
-	typeinfo(int type, char* struct_name, int depth);
 	bool operator==(typeinfo& rhs);
 	bool operator!=(typeinfo& rhs);
 };
@@ -30,11 +28,19 @@ struct param
 	char* name;
 };
 
+class param_set : public std::vector<param>
+{
+public:
+	param* get(char* name);
+	bool operator==(param_set& rhs);
+	bool operator!=(param_set& rhs);
+};
+
 struct function
 {
 	typeinfo tinfo;
 	char* name;
-	std::vector<param> params;
+	param_set params;
 	int addr;
 };
 
@@ -48,23 +54,13 @@ struct variable
 class variable_set : public std::vector<variable>
 {
 public:
-	variable* get(char* name)
-	{
-		auto r = std::find_if(begin(), end(),
-			[name] (auto& x) { return name == x.name; });
-		return r != end() ? &(*r) : nullptr;
-	}
+	variable* get(char* name);
 };
 
 class function_set : public std::vector<function>
 {
 public:
-	function* get(char* name)
-	{
-		auto r = std::find_if(begin(), end(),
-			[name] (auto& x) { return name == x.name; });
-		return r != end() ? &(*r) : nullptr;
-	}
+	function* get(char* name);
 };
 
 class buffer;
@@ -82,12 +78,19 @@ private:
 
 	struct token* tok;
 	function* curfunc;
+	typeinfo tinfo;
+	param_set params;
 
 	int token();
 	void match(int t);
 
 	void program();
-	void paramlist(std::vector<param>& params);
+	void type();
+	void depth();
+	void structdef();
+	void funcdef();
+	void gvardef();
+	void paramlist();
 	void block();
 
 public:
