@@ -9,6 +9,8 @@ public:
 	void fill(T t, Ts... ts) { fill(t); fill(ts...); }
 	template<typename T>
 	void fill(T t) { insert(end(), (u8*)&t, (u8*)&t + sizeof(T)); }	
+
+	void fill(char* s, int len) { insert(end(), (u8*)s, (u8*)s+len); }
 	void fill(buffer& buf) { insert(end(), buf.begin(), buf.end()); }
 };
 
@@ -28,6 +30,7 @@ public:
 	void fill_text(Ts... ts) { text.fill(ts...); }
 	template<typename... Ts>
 	void fill_data(Ts... ts) { data.fill(ts...); }
+	void fill_str(char* s, int len) { data.fill(s, len); }
 
 public:
 	buffer text;

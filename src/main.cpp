@@ -6,6 +6,7 @@
 #include "image.hpp"
 #include "parser.hpp"
 #include "tokens.hpp"
+#include "string_pool.hpp"
 #include "instructions.hpp"
 
 int yylex(void);
@@ -14,27 +15,11 @@ extern char* yytext;
 extern int yylineno;
 void yyrestart(FILE *in);
 
-class {
-public:
-	char* add(const char* s)
-	{
-		for(auto x : strs)
-		{
-			if (!strcmp(x, s))
-			{
-				return x;
-			}
-		}
-		strs.push_back(strdup(s));
-		return strs.back();
-	}
-private:
-	std::vector<char*> strs;
-} strpool;
-
 void tokenize(std::vector<token>& toks, FILE* in = stdin)
 {
 	yyrestart(in);
+	string_pool& strpool = string_pool::get_instance();
+
 	while(true)
 	{
 		token tok = { };
@@ -76,6 +61,12 @@ int main()
 	parser pr(img, toks.data());
 	pr.parse();
 
+	for(auto&x : pr.gvars)
+	{
+		printf("%d %d* %s, addr = %d\n", 
+			x.tinfo.type, x.tinfo.depth, x.name, x.addr);
+	}
+
 	for(auto& x : pr.funcs)
 	{
 		printf("%d %d* %s(", x.tinfo.type, x.tinfo.depth, x.name);
@@ -83,7 +74,7 @@ int main()
 		{
 			printf("%d %d* %s, ", p.tinfo.type, p.tinfo.depth, p.name);
 		}
-		printf(") = %d\n", x.addr);
+		printf("), addr = %d\n", x.addr);
 	}
 
 	/*

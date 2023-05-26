@@ -38,6 +38,35 @@ struct function
 	int addr;
 };
 
+struct variable
+{
+	typeinfo tinfo;
+	char* name;
+	int addr;
+};
+
+class variable_set : public std::vector<variable>
+{
+public:
+	variable* get(char* name)
+	{
+		auto r = std::find_if(begin(), end(),
+			[name] (auto& x) { return name == x.name; });
+		return r != end() ? &(*r) : nullptr;
+	}
+};
+
+class function_set : public std::vector<function>
+{
+public:
+	function* get(char* name)
+	{
+		auto r = std::find_if(begin(), end(),
+			[name] (auto& x) { return name == x.name; });
+		return r != end() ? &(*r) : nullptr;
+	}
+};
+
 class buffer;
 class image;
 
@@ -63,5 +92,6 @@ private:
 
 public:
 	image& img;
-	std::vector<function> funcs;
+	function_set funcs;
+	variable_set gvars;
 };
