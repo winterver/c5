@@ -200,8 +200,15 @@ void parser::access(char* name, int& size)
 	// global variable
 	else if (clazz == 3)
 	{	
-		img.fill_text(pu, GLO, u16(addr));		
+		img.fill_text(pu, GLO, u32(addr));		
 	}
+}
+
+function* parser::get_function(char* name)
+{
+	auto r = std::find_if(funcs.begin(), funcs.end(),
+		[name] (auto& x) { return name == x.name; });
+	return r != funcs.end() ? &(*r) : nullptr;
 }
 
 int parser::token()
@@ -498,7 +505,7 @@ void parser::block()
 			if (next == '(')
 			{
 				// function call
-				call();
+				call(img.text);
 			}
 			else
 			{
@@ -603,9 +610,67 @@ void parser::assign()
 	}
 }
 
-void parser::call()
+void parser::call(buffer& buf)
 {
-	error("function call currently not implemented");
+	char* name = tok->sval;
+	match(IDENTIFIER);
+
+	curfunc = get_function(name);
+	if (curfunc == nullptr)
+	{
+		error("function not found");
+	}
+	
+	npassed = 0;
+	call_stack_size = 0;
+	match('('); // for the sake of recursion
+	arglist(buf);
+	match(')');
+
+	if (npassed < curfunc->params.size())
+	{
+		error("too few arguments");
+	}
+
+	buf.fill(
+		CAL, u32(curfunc->addr), 
+		ADS, i16(call_stack_size)
+	);
+}
+
+void parser::arglist(buffer& _buf)
+{
+	if (token() == ')')
+	{
+		return;
+	}
+
+	buffer buf;
+	expression(buf);
+
+	if (npassed >= curfunc->params.size())
+	{
+		error("too many arguments");
+	}
+
+	param p = curfunc->params[npassed];
+	switch(p.tinfo.type)
+	{
+	case CHAR: buf.fill(PUB); call_stack_size += 1; break;
+	case SHORT: buf.fill(PUW); call_stack_size += 2; break;
+	case INT: buf.fill(PUD); call_stack_size += 4; break;
+	case LONG: buf.fill(PUQ); call_stack_size += 8; break;
+	}
+
+	npassed++;
+
+	if (token() == ',')
+	{
+		match(',');
+		arglist(_buf);
+	}
+
+	_buf.fill(buf);
 }
 
 void parser::expression(buffer& buf)
@@ -675,6 +740,12 @@ void parser::factor(buffer& buf)
         expression(buf);
         match(')');
 	}
+	else if (token() == '-')
+	{
+		match('-');
+		expression(buf);
+		buf.fill(NEG);
+	}
 	else if (token() == '&')
 	{
 		match('&');
@@ -686,17 +757,34 @@ void parser::factor(buffer& buf)
 	}
 	else if (token() == IDENTIFIER)
 	{
-		char* name = tok->sval;
+		struct token* prev = tok;
 		match(IDENTIFIER);
+		int t = token();
+		tok = prev;
 
-		int size; // the size of the value pointed by the pointer in acc
-		access(name, size); // address of the variable is now in acc
-		switch(size)
+		if (t == '(')
 		{
-		case 1: buf.fill(LOB); break;
-		case 2: buf.fill(LOW); break;
-		case 4: buf.fill(LOD); break;
-		case 8: buf.fill(LOQ); break;
+			int bak_npassed = npassed;
+			int bak_call_stack_size = call_stack_size;
+			call(buf);
+			npassed = bak_npassed;
+			call_stack_size = bak_call_stack_size;
+		}
+		else
+		{
+			// variable access
+			char* name = tok->sval;
+			match(IDENTIFIER);
+
+			int size; // the size of the value pointed by acc
+			access(name, size); // address of the variable is now in acc
+			switch(size)
+			{
+			case 1: buf.fill(LOB); break;
+			case 2: buf.fill(LOW); break;
+			case 4: buf.fill(LOD); break;
+			case 8: buf.fill(LOQ); break;
+			}
 		}
 	}
 	else if (token() == NUMBER)

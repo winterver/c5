@@ -31,7 +31,7 @@ void yyerror(const char* s);
 (0|[1-9][0-9]*)\.([0-9]+|[0-9]*f)	{ return DECIMAL; }
 
 	/* single-character operators & symbols */
-[~!%^&*()-+={}\[\]|;:<>,./]			{ return *yytext; }
+[~!%^&*()\-+={}\[\]|;:<>,./]		{ return *yytext; }
 
 	/* multi-character operators */
 "=="								{ return EQUAL; }

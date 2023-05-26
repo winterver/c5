@@ -89,11 +89,20 @@ private:
 
 	void access(char* name, int& size); 
 		// load the address of specified variable
+	
+	function* get_function(char* name);
 
 	struct token* tok;
+
 	typeinfo tinfo; // updated after a call to type()
 	param_set params; // updated after a call to paramlist()
+					  //
 	function* curfunc; // updated after parsing a function signature	
+					   // or when calling a function
+
+	int npassed;	// num of arguments passed during a call 
+	int call_stack_size;
+
 	variable_set* curlocal;
 	int localoffset; // an offset relative bp, where the latest local
 					 // variable should be placed
@@ -111,7 +120,8 @@ private:
 	void block();
 	void lvardef();
 	void assign();
-	void call();
+	void call(buffer& buf);
+	void arglist(buffer& buf);
 	void expression(buffer& buf);
 	void term1(buffer& buf);
 	void term2(buffer& buf);
