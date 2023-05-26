@@ -78,10 +78,10 @@ int main()
 
 	for(auto& x : pr.funcs)
 	{
-		printf("%d %d* %s(", x.type, x.depth, x.name);
+		printf("%d %d* %s(", x.tinfo.type, x.tinfo.depth, x.name);
 		for(auto& p : x.params)
 		{
-			printf("%d %d* %s, ", p.type, p.depth, p.name);
+			printf("%d %d* %s, ", p.tinfo.type, p.tinfo.depth, p.name);
 		}
 		printf(") = %d\n", x.addr);
 	}

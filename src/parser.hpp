@@ -12,19 +12,27 @@ struct token
 	};
 };
 
-struct param
+struct typeinfo
 {
 	int type;
 	char* struct_name;
 	int depth;
+
+	typeinfo() { }
+	typeinfo(int type, char* struct_name, int depth);
+	bool operator==(typeinfo& rhs);
+	bool operator!=(typeinfo& rhs);
+};
+
+struct param
+{
+	typeinfo tinfo;
 	char* name;
 };
 
 struct function
 {
-	int type;
-	char* struct_name;
-	int depth;
+	typeinfo tinfo;
 	char* name;
 	std::vector<param> params;
 	int addr;

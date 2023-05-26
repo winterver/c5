@@ -7,6 +7,25 @@
 #include "parser.hpp"
 #include "instructions.hpp"
 
+typeinfo::typeinfo(int type, char* struct_name, int depth)
+	: type(type), depth(depth) 
+{
+	this->struct_name = type == STRUCT 
+		? struct_name : nullptr;
+}
+
+bool typeinfo::operator==(typeinfo& rhs)
+{
+	return (type == rhs.type
+		&& struct_name == rhs.struct_name
+		&& depth == rhs.depth);
+}
+
+bool typeinfo::operator!=(typeinfo& rhs)
+{
+	return !this->operator==(rhs);
+}
+
 parser::parser(image& img, struct token* tok)
 	: img(img)
 	, tok(tok)
@@ -44,9 +63,8 @@ void parser::program()
 {
 	while(token())
 	{
-		// type of variable or return type of the function
 		int type;
-		char* struct_name;
+		char* struct_name = nullptr;
 		int depth;
 
 		// match a type or struct definition
@@ -101,10 +119,8 @@ void parser::program()
 			std::vector<param> params;
 			paramlist(params);
 
-			function func;
-			func.type = type;
-			func.struct_name = type == STRUCT ? struct_name : nullptr;
-			func.depth = depth;
+			function func;	
+			func.tinfo = typeinfo(type, struct_name, depth);
 			func.name = name;
 			func.params = params;
 			func.addr = -1; // -1 indicates forward declaration
@@ -131,9 +147,7 @@ void parser::program()
 				int size = p1.size();
 				for(int i = 0; i < size; i++)
 				{
-					if (p1[i].type != p2[i].type
-						|| p1[i].struct_name != p2[i].struct_name
-						|| p1[i].depth != p2[i].depth)
+					if (p1[i].tinfo != p2[i].tinfo)
 					{
 						return false;
 					}
@@ -144,9 +158,7 @@ void parser::program()
 			// if yes, check if both declaration are the same
 			if (decl != funcs.end())
 			{	
-				if (decl->type != func.type
-					|| decl->struct_name != func.struct_name
-					|| decl->depth != func.depth
+				if (decl->tinfo != func.tinfo
 					|| !compare(decl->params, func.params))
 				{
 					error("declaration mismatch");
@@ -168,10 +180,8 @@ void parser::program()
 
 				// get start address of the function body
 				func.addr = img.text.size();
-				// parse function body
-				curfunc = &func;
-				block();
 
+				// register/update function info
 				if (decl == funcs.end())
 				{
 					funcs.push_back(func);
@@ -182,6 +192,10 @@ void parser::program()
 					// update parameter names
 					decl->params = std::move(func.params);
 				}
+				
+				// parse function body
+				curfunc = &func;
+				block();	
 			}
 			else
 			{
@@ -231,10 +245,10 @@ void parser::paramlist(std::vector<param>& params)
 
 	// type of the current param
 	int type;
-	char* struct_name;
+	char* struct_name = nullptr;
+	int depth;
 	// name of the parameter
 	char* name;
-	int depth;
 
 NextParam:
 	// match a type
@@ -268,10 +282,8 @@ NextParam:
 	match(IDENTIFIER);
 
 	param p;
-	p.type = type;
-	p.struct_name = type == STRUCT ? struct_name : nullptr;
+	p.tinfo = typeinfo(type, struct_name, depth);
 	p.name = name;
-	p.depth = depth;
 
 	params.push_back(p);
 
