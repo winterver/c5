@@ -620,6 +620,11 @@ void parser::call(buffer& buf)
 	{
 		error("function not found");
 	}
+
+	if (curfunc->addr == -1)
+	{
+		error("unimplemented function");
+	}
 	
 	npassed = 0;
 	call_stack_size = 0;
@@ -764,11 +769,13 @@ void parser::factor(buffer& buf)
 
 		if (t == '(')
 		{
+			function* bak_curfunc = curfunc;
 			int bak_npassed = npassed;
 			int bak_call_stack_size = call_stack_size;
 			call(buf);
 			npassed = bak_npassed;
 			call_stack_size = bak_call_stack_size;
+			curfunc = bak_curfunc;
 		}
 		else
 		{
