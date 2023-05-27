@@ -2,21 +2,20 @@
 a c interpreter
 
 # TODO
-if else
-while for
-continue break
-__syscall
+string,
+pseudo-instructions for defining data,
+if else,
+while for,
+continue break,
+__syscall,
 c23 keyword: nullptr
-variadic arguments
-pointer deref
-cast
-function pointer
-struct
-member access
-
-assembly output
-assembler
-only by implementing an assembler can c5 support forward declaration
+variadic arguments,
+type check,
+pointer deref,
+cast,
+function pointer,
+struct,
+member access,
 
 c preprocessor
 

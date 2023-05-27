@@ -34,8 +34,8 @@ enum op_t : u8 {
 	POQ, 
 	
 	JMP, 
-	//BNZ, 
-	//BZ,	 
+	BNZ, 
+	BZ,	 
 	CAL, // call 
 	RET, 
 

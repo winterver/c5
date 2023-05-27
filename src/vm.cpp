@@ -31,14 +31,15 @@ void vm_t::exec()
 		case PRTF: printf("%d\n", (i32)acc); break;
 
 		// tips
-		// while doing arithmetic
+		// 1 while doing arithmetic
 		// lhs is on the top of stack
 		// and rhs is in acc. both are
 		// i64.
-		// while storing some value into
+		// 2 while storing some value into
 		// a specific address, an i64 value
 		// shall be put on the top of stack
 		// the pointer shall be in acc.
+		// 3 BNZ & BZ takes ABSOLUTE address
 
 		case IMB: acc = next<i8>(); break;
 		case IMW: acc = next<i16>(); break;
@@ -62,8 +63,8 @@ void vm_t::exec()
 		case POQ: acc = pop<i64>(); break;
 
 		case JMP: op = text + next<u32>(); break;
-		//case BNZ: if(acc) op += next<i32>(); else next<i32>(); break;
-		//case BZ:  if(!acc) op += next<i32>(); else next<i32>(); break;
+		case BNZ: if(acc) op = text + next<u32>(); else next<u32>(); break;
+		case BZ:  if(!acc) op = text + next<u32>(); else next<u32>(); break;
 		case CAL: 
 				  push<u32>(op + 4 - text);			// push eip
 				  op = text + next<u32>();			// jmp addr

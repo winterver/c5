@@ -76,8 +76,8 @@ void print_assembly(std::string& str)
 		if (operand)
 		{
 			if (op == JMP 
-				//|| op == BNZ
-				//|| op == BZ
+				|| op == BNZ
+				|| op == BZ
 				|| op == CAL
 				|| op == LABL)
 			{
@@ -87,8 +87,8 @@ void print_assembly(std::string& str)
 				switch(op)
 				{
 				case JMP: std::cout << "JMP " << label << "\n"; break;
-				//case BNZ: std::cout << "BNZ " << label << "\n"; break;
-				//case BZ: std::cout << "BZ " << label << "\n"; break;
+				case BNZ: std::cout << "BNZ " << label << "\n"; break;
+				case BZ: std::cout << "BZ " << label << "\n"; break;
 				case CAL: std::cout << "CAL " << label << "\n"; break;
 				case LABL: std::cout << "Label " << label << "\n"; break;
 				}
@@ -188,8 +188,8 @@ image assemble(std::string& str)
 		if (operand)
 		{
 			if (op == JMP 
-				//|| op == BNZ
-				//|| op == BZ
+				|| op == BNZ
+				|| op == BZ
 				|| op == CAL
 				|| op == LABL)
 			{
@@ -199,8 +199,8 @@ image assemble(std::string& str)
 				switch(op)
 				{
 				case JMP:	
-				//case BNZ:
-				//case BZ:
+				case BNZ:
+				case BZ:
 				case CAL:
 					img.fill_text(op_t(op), u32());
 					references.push_back(
