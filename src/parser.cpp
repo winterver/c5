@@ -85,15 +85,18 @@ function* function_set::get(char* name)
 	return r != end() ? &(*r) : nullptr;
 }
 
-parser::parser(image& img, struct token* tok)
-	: img(img)
-	, tok(tok)
+parser::parser(struct token* tok)
+	: tok(tok)
 { }
 
 void parser::parse()
 {
 	// setup entry
-	img.fill_text(CAL, u32(), PRTF, EXIT);
+	//img.fill_text(CAL, u32(), PRTF, EXIT);
+	cb.fill(CAL, 0);
+	cb.fill(PRTF);
+	cb.fill(EXIT);
+
 	// parse & code generation
 	program();
 
@@ -107,7 +110,7 @@ void parser::parse()
 		{
 			error("main() not implemented");
 		}
-		*(u32*)&img.text[1] = main->addr;
+		//*(u32*)&img.text[1] = main->addr;
 	}
 	else
 	{
@@ -169,38 +172,37 @@ void parser::access(char* name, int& size)
 		error("unknown variable");
 	}
 
-	op_t pu;
+	
 	if (tinfo.depth == 0)
 	{
 		switch(tinfo.type)
 		{
-		case CHAR: size = 1; pu = PUB; break; 
-		case SHORT: size = 2; pu = PUW; break;
-		case INT: size = 4; pu = PUD; break; 
-		case LONG: size = 8; pu = PUQ; break;
+		case CHAR: size = 1; break; 
+		case SHORT: size = 2; break;
+		case INT: size = 4; break; 
+		case LONG: size = 8; break;
 		default: error("unsupported type"); break;
 		}
 	}
 	else
 	{
 		size = 8;
-		pu = PUQ;
-	}	
+	}
 
 	// local variable
 	if (clazz == 1)
 	{	
-		img.fill_text(pu, LEA, i16(addr));		
+		cb.fill(LEA, addr);
 	}	
 	// parameter
 	else if (clazz == 2)
 	{	
-		img.fill_text(pu, LEA, i16(addr+8));		
+		cb.fill(LEA, addr+8);
 	}
 	// global variable
 	else if (clazz == 3)
 	{	
-		img.fill_text(pu, GLO, u32(addr));		
+		cb.fill(GLO, addr);
 	}
 }
 
@@ -338,7 +340,7 @@ void parser::funcdef()
 		}
 
 		// get start address of the function body
-		func.addr = img.text.size();
+		func.addr = 0;//img.text.size();
 
 		// register/update function info
 		if (decl == nullptr)
@@ -356,9 +358,10 @@ void parser::funcdef()
 		curfunc = &func;
 		curlocal = nullptr;
 		localoffset = 0;
-		img.fill_text(ADS, i16());
+		//img.fill_text(ADS, i16());
+		cb.fill(ADS, 0);
 		block();
-		*(i16*)&img.text[func.addr+1] = localoffset;
+		//*(i16*)&img.text[func.addr+1] = localoffset;
 	}
 	else
 	{
@@ -392,11 +395,12 @@ NextVar:
 	else
 	{
 		// alloc memory for the variable in data
-		var.addr = img.data.size();
+		var.addr = 0;//img.data.size();
 		// TODO support initialization
 		// TODO support struct & string & array & float
 		if (var.tinfo.depth == 0)
 		{
+			/*
 			switch(var.tinfo.type)
 			{
 			case CHAR: img.fill_data(i8()); break;
@@ -405,10 +409,11 @@ NextVar:
 			case LONG: img.fill_data(i64()); break;
 			default: error("unsupported type"); break;
 			}
+			*/	
 		}
 		else
 		{
-			img.fill_data(u64());
+			//img.fill_data(u64());
 		}
 		gvars.push_back(var);
 	}
@@ -506,7 +511,8 @@ void parser::block()
 			if (next == '(')
 			{
 				// function call
-				call(img.text);
+				//call(img.text);
+				call(cb);
 			}
 			else
 			{
@@ -526,10 +532,12 @@ void parser::block()
 			else
 			{
 				// return with a value
-				expression(img.text);
+				//expression(img.text);
+				expression(cb);
 				match(';');
 			}
-			img.fill_text(RET);
+			//img.fill_text(RET);
+			cb.fill(RET);
 		}
 		else
 		{
@@ -538,7 +546,8 @@ void parser::block()
 		}
 	}
 
-	img.fill_text(RET);
+	//img.fill_text(RET);
+	cb.fill(RET);
 	
 	curlocal = curlocal->parent;
 	match('}');
@@ -598,20 +607,23 @@ void parser::assign()
 	char* name = tok->sval;
 	match(IDENTIFIER);
 	match('=');
-	expression(img.text);
+
+	expression(cb);
+	cb.fill(PUQ);
 	
 	int size;
 	access(name, size);
+
 	switch(size)
-	{
-	case 1: img.fill_text(STB); break;
-	case 2: img.fill_text(STW); break;
-	case 4: img.fill_text(STD); break;
-	case 8: img.fill_text(STQ); break;
+	{	
+	case 1:	cb.fill(STB); break;
+	case 2:	cb.fill(STW); break;
+	case 4:	cb.fill(STD); break;
+	case 8:	cb.fill(STQ); break;
 	}
 }
 
-void parser::call(buffer& buf)
+void parser::call(codebuf& buf)
 {
 	char* name = tok->sval;
 	match(IDENTIFIER);
@@ -638,10 +650,12 @@ void parser::call(buffer& buf)
 		error("too few arguments");
 	}	
 
-	buf.fill(
+	/*buf.fill(
 		CAL, u32(curfunc->addr), 
 		ADS, i16(call_stack_size)
-	);
+	);*/
+	buf.fill(CAL, curfunc->addr);
+	buf.fill(ADS, call_stack_size);
 
 	// if curfunc is a forward declaration
 	// its implementation will be found later
@@ -649,20 +663,20 @@ void parser::call(buffer& buf)
 	/*if (curfunc->addr == -1)
 	{
 		// TODO add to the resolve list
-		// 因为用了独立buffer的缘故
+		// 因为用了独立codebuf的缘故
 		// CAL的operand在text内的位置很难计算。。。
 		// 还是输出汇编，然后用汇编器汇编比较好。
 	}*/
 }
 
-void parser::arglist(buffer& _buf)
+void parser::arglist(codebuf& _buf)
 {
 	if (token() == ')')
 	{
 		return;
 	}
 
-	buffer buf;
+	codebuf buf;
 	expression(buf);
 
 	if (npassed >= curfunc->params.size())
@@ -687,10 +701,10 @@ void parser::arglist(buffer& _buf)
 		arglist(_buf);
 	}
 
-	_buf.fill(buf);
+	_buf << buf.str();
 }
 
-void parser::expression(buffer& buf)
+void parser::expression(codebuf& buf)
 {
 	term1(buf);
 	while (token() == '<' 
@@ -713,7 +727,7 @@ void parser::expression(buffer& buf)
     }	
 }
 
-void parser::term1(buffer& buf)
+void parser::term1(codebuf& buf)
 {
 	term2(buf);
 	while (token() == '+' || token() == '-')
@@ -731,7 +745,7 @@ void parser::term1(buffer& buf)
     }
 }
 
-void parser::term2(buffer& buf)
+void parser::term2(codebuf& buf)
 {
 	factor(buf);
 	while (token() == '*' || token() == '/' || token() == '%')
@@ -750,7 +764,7 @@ void parser::term2(buffer& buf)
     }
 }
 
-void parser::factor(buffer& buf)
+void parser::factor(codebuf& buf)
 {
 	if (token() == '(') {
         match('(');

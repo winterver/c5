@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <vector>
 #include <string>
+#include <iostream>
 
 #include "vm.hpp"
 #include "image.hpp"
@@ -8,6 +9,7 @@
 #include "tokens.hpp"
 #include "string_pool.hpp"
 #include "instructions.hpp"
+#include "assembler.hpp"
 
 int yylex(void);
 extern int yyleng;
@@ -57,9 +59,11 @@ int main()
 	}
 	*/
 	
-	image img;
-	parser pr(img, toks.data());
+	parser pr(toks.data());
 	pr.parse();
+
+	image img;
+	assemble(img, pr.cb.str());
 
 	/*
 	for(auto&x : pr.gvars)
@@ -76,13 +80,12 @@ int main()
 			printf("%d %d* %s, ", p.tinfo.type, p.tinfo.depth, p.name);
 		}
 		printf("), addr = %d\n", x.addr);
-	}
+	}*/
 
 	for(u8 x : img.text)
 	{
-		printf("%02X ", x);
+		printf("%d ", x);
 	}
-	*/
 
 	/*image img2;
 	img2.fill_text(
@@ -97,6 +100,6 @@ int main()
 		EXIT
 	);*/
 
-	vm_t vm(img);
-	vm.exec();
+	//vm_t vm(img);
+	//vm.exec();
 }

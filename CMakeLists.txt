@@ -3,7 +3,8 @@ project(c5)
 
 add_executable(c5 
 	src/main.cpp 
-	src/parser.cpp
-	src/vm.cpp
 	src/lex.yy.cpp
+	src/parser.cpp
+	src/assembler.cpp
+	src/vm.cpp
 )

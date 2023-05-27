@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <sstream>
 
 struct token
 {
@@ -68,17 +69,28 @@ public:
 	function* get(char* name);
 };
 
-class buffer;
-class image;
+class codebuf : public std::ostringstream
+{
+public:
+	void fill(int op)
+	{
+		(*this) << op << "\n";
+	}
+	void fill(int op, long long int num)
+	{
+		(*this) << op << " " << num << "\n";
+	}
+};
 
 class parser
 {
 public:
-	parser(image& img, struct token* tok);
+	parser(struct token* tok);
 
 	void parse();
 
 private:
+	// helper functions
 	void error(const char* errmsg);
 	void get_variable(char* name, int& addr, int& clazz); 
 		// helper function
@@ -90,8 +102,9 @@ private:
 	void access(char* name, int& size); 
 		// load the address of specified variable
 	
-	function* get_function(char* name);
+	function* get_function(char* name);	
 
+	// parser
 	struct token* tok;
 
 	typeinfo tinfo; // updated after a call to type()
@@ -120,15 +133,15 @@ private:
 	void block();
 	void lvardef();
 	void assign();
-	void call(buffer& buf);
-	void arglist(buffer& buf);
-	void expression(buffer& buf);
-	void term1(buffer& buf);
-	void term2(buffer& buf);
-	void factor(buffer& buf);
+	void call(codebuf& buf);
+	void arglist(codebuf& buf);
+	void expression(codebuf& buf);
+	void term1(codebuf& buf);
+	void term2(codebuf& buf);
+	void factor(codebuf& buf);
 
 public:
-	image& img;
+	codebuf cb;
 	function_set funcs;
 	variable_set gvars;
 };
