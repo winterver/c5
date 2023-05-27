@@ -55,7 +55,7 @@ int main()
 	parser pr;
 	pr.parse(toks.data());
 
-	//print_assembly(pr.cb.str());
+	print_assembly(pr.cb.str());
 	image img = assemble(pr.cb.str());
 	img.data.reserve(1024);
 

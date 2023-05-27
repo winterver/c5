@@ -540,6 +540,9 @@ void parser::lvardef()
 
 NextVar:
 	depth();
+
+	struct token* bak = tok;
+	
 	char* name = tok->sval;
 	match(IDENTIFIER);
 
@@ -573,6 +576,14 @@ NextVar:
 			localoffset -= 8;
 		}
 		curlocal->push_back(var);
+	}
+
+	if (token() == '=')
+	{
+		tok = bak;
+		assign();
+		// this works only if assign()
+		// doesn't change tinfo.
 	}
 	
 	if (token() == ',')
@@ -668,6 +679,99 @@ void parser::arglist(codebuf& _buf)
 void parser::expression(codebuf& buf)
 {
 	term1(buf);
+}
+
+void parser::term1(codebuf& buf)
+{
+	term2(buf);
+	while (token() == LOGIC_OR)
+	{
+		int t = token();
+		match(t);
+		buf.fill(PUQ);
+		term2(buf);
+
+		buf.fill(LOR);
+	}
+}
+
+void parser::term2(codebuf& buf)
+{
+	term3(buf);
+	while (token() == LOGIC_AND)
+	{
+		int t = token();
+		match(t);
+		buf.fill(PUQ);
+		term3(buf);
+
+		buf.fill(LAN);
+	}
+}
+
+void parser::term3(codebuf& buf)
+{
+	term4(buf);
+	while (token() == '|')
+	{
+		int t = token();
+		match(t);
+		buf.fill(PUQ);
+		term4(buf);
+
+		buf.fill(OR);
+	}
+}
+
+void parser::term4(codebuf& buf)
+{
+	term5(buf);
+	while (token() == '^')
+	{
+		int t = token();
+		match(t);
+		buf.fill(PUQ);
+		term5(buf);
+
+		buf.fill(XOR);
+	}
+}
+
+void parser::term5(codebuf& buf)
+{
+	term6(buf);
+	while (token() == '&')
+	{
+		int t = token();
+		match(t);
+		buf.fill(PUQ);
+		term6(buf);
+
+		buf.fill(AND);
+	}
+}
+
+void parser::term6(codebuf& buf)
+{
+	term7(buf);
+	while (token() == EQUAL || token() == NOT_EQUAL)
+	{
+		int t = token();
+		match(t);
+		buf.fill(PUQ);
+		term7(buf);
+
+        switch(t)
+		{
+		case EQUAL: buf.fill(EQ); break;
+		case NOT_EQUAL: buf.fill(NE); break;
+		}
+    }
+}
+
+void parser::term7(codebuf& buf)
+{
+	term8(buf);
 	while (token() == '<' 
 		|| token() == '>'
 		|| token() == LESS_EQUAL
@@ -676,7 +780,7 @@ void parser::expression(codebuf& buf)
 		int t = token();
 		match(t);
 		buf.fill(PUQ);
-		term1(buf);
+		term8(buf);
 
         switch(t)
 		{
@@ -688,15 +792,33 @@ void parser::expression(codebuf& buf)
     }	
 }
 
-void parser::term1(codebuf& buf)
+void parser::term8(codebuf& buf)
 {
-	term2(buf);
+	term9(buf);
+	while (token() == LSHIFT || token() == RSHIFT)
+	{
+		int t = token();
+		match(t);
+		buf.fill(PUQ);
+		term9(buf);
+
+        switch(t)
+		{
+		case LSHIFT: buf.fill(SHL); break;
+		case RSHIFT: buf.fill(SHR); break;
+		}
+    }
+}
+
+void parser::term9(codebuf& buf)
+{
+	term10(buf);
 	while (token() == '+' || token() == '-')
 	{
 		int t = token();
 		match(t);
 		buf.fill(PUQ);
-		term2(buf);
+		term10(buf);
 
         switch(t)
 		{
@@ -706,7 +828,7 @@ void parser::term1(codebuf& buf)
     }
 }
 
-void parser::term2(codebuf& buf)
+void parser::term10(codebuf& buf)
 {
 	factor(buf);
 	while (token() == '*' || token() == '/' || token() == '%')

@@ -72,6 +72,8 @@ public:
 class codebuf : public std::ostringstream
 {
 public:
+	codebuf() : std::ostringstream(std::ios::binary) { }
+
 	void fill(int op)
 	{
 		(*this) << op << "\n";
@@ -141,6 +143,14 @@ private:
 	void expression(codebuf& buf);
 	void term1(codebuf& buf);
 	void term2(codebuf& buf);
+	void term3(codebuf& buf);
+	void term4(codebuf& buf);
+	void term5(codebuf& buf);
+	void term6(codebuf& buf);
+	void term7(codebuf& buf);
+	void term8(codebuf& buf);
+	void term9(codebuf& buf);
+	void term10(codebuf& buf);
 	void factor(codebuf& buf);
 
 public:

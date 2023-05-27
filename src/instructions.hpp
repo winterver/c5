@@ -6,6 +6,7 @@ enum op_t : u8 {
 	
 	// pseudo-instructions
 	LABL, // marks a label
+	// DB DW DD DQ DS(define string)
 	
 	// IM: IMmediate, LO: LOad, ST: STore
 	// PU: PUsh, PO: POp.
@@ -64,8 +65,12 @@ enum op_t : u8 {
 	LOR, // logic OR
 	LNO, // logic NOt
 	
+	SHL,
+	SHR,
+	
 	// comparison operators
 	EQ,
+	NE,
 	GT,
 	LT,
 	GE,

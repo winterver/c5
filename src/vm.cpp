@@ -100,7 +100,11 @@ void vm_t::exec()
 		case LOR: acc = pop<i64>() || acc; break;
 		case LNO: acc = !acc; break;
 
+		case SHL: acc = pop<i64>() << acc; break;
+		case SHR: acc = pop<i64>() >> acc; break;
+
 		case EQ: acc = pop<i64>() == acc; break;
+		case NE: acc = pop<i64>() != acc; break;
 		case GT: acc = pop<i64>() > acc; break;
 		case LT: acc = pop<i64>() < acc; break;
 		case GE: acc = pop<i64>() >= acc; break;

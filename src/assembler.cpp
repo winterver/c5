@@ -60,7 +60,11 @@ void print_assembly(std::string& str)
 		case LOR: std::cout << "LOR\n"; break;
 		case LNO: std::cout << "LNO\n"; break;
 
+		case SHL: std::cout << "SHL\n"; break;
+		case SHR: std::cout << "SHR\n"; break;
+
 		case EQ: std::cout << "EQ\n"; break;
+		case NE: std::cout << "NE\n"; break;
 		case GT: std::cout << "GT\n"; break;
 		case LT: std::cout << "LT\n"; break;
 		case GE: std::cout << "GE\n"; break;
@@ -164,7 +168,11 @@ image assemble(std::string& str)
 		case LOR: 
 		case LNO: 
 
+		case SHL:
+		case SHR:
+
 		case EQ: 
+		case NE:
 		case GT: 
 		case LT: 
 		case GE: 
