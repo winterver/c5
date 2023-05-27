@@ -90,11 +90,11 @@ void vm_t::exec()
 		case LOR: acc = acc || pop<i64>(); break;
 		case LNO: acc = !acc; break;
 
-		case EQ: acc = acc == pop<i64>();
-		case GT: acc = acc > pop<i64>();
-		case LT: acc = acc < pop<i64>();
-		case GE: acc = acc >= pop<i64>();
-		case LE: acc = acc <= pop<i64>();
+		case EQ: acc = acc == pop<i64>(); break;
+		case GT: acc = acc > pop<i64>(); break
+		case LT: acc = acc < pop<i64>(); break;
+		case GE: acc = acc >= pop<i64>(); break;
+		case LE: acc = acc <= pop<i64>(); break;
 		}
 	}
 Exit:

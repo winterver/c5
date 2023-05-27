@@ -643,7 +643,7 @@ void parser::call(buffer& buf)
 		ADS, i16(call_stack_size)
 	);
 
-	// curfunc is a forward declaration
+	// if curfunc is a forward declaration
 	// its implementation will be found later
 	// add it to the resolve list
 	/*if (curfunc->addr == -1)
@@ -651,6 +651,7 @@ void parser::call(buffer& buf)
 		// TODO add to the resolve list
 		// 因为用了独立buffer的缘故
 		// CAL的operand在text内的位置很难计算。。。
+		// 还是输出汇编，然后用汇编器汇编比较好。
 	}*/
 }
 
