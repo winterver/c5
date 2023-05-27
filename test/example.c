@@ -7,14 +7,10 @@ int mul(int a, int b)
 	return a*b;
 }
 
-void mxl()
-{
-}
-
 int main()
 {
 	a = 0x13;
 	int c;
 	c=233;
-	return -(mul(mul(2, 2), 2));
+	return mul(233, 233);
 }

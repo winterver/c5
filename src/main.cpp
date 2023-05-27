@@ -51,55 +51,22 @@ int main()
 {
 	std::vector<token> toks;
 	tokenize(toks);
-
-	/*
-	for(auto t : toks)
-	{
-		printf("%d: %d\n", t.lineno, t.tok);
-	}
-	*/
 	
-	parser pr(toks.data());
-	pr.parse();
+	parser pr;
+	pr.parse(toks.data());
 
-	image img;
-	assemble(img, pr.cb.str());
+	//print_assembly(pr.cb.str());
+	image img = assemble(pr.cb.str());
+	img.data.reserve(1024);
 
 	/*
-	for(auto&x : pr.gvars)
-	{
-		printf("%d %d* %s, addr = %d\n", 
-			x.tinfo.type, x.tinfo.depth, x.name, x.addr);
-	}
-
-	for(auto& x : pr.funcs)
-	{
-		printf("%d %d* %s(", x.tinfo.type, x.tinfo.depth, x.name);
-		for(auto& p : x.params)
-		{
-			printf("%d %d* %s, ", p.tinfo.type, p.tinfo.depth, p.name);
-		}
-		printf("), addr = %d\n", x.addr);
-	}*/
-
+	printf("total size: %zd\n", img.text.size());
 	for(u8 x : img.text)
 	{
 		printf("%d ", x);
 	}
+	*/
 
-	/*image img2;
-	img2.fill_text(
-		JMP, u32(18),
-		IMD, i32(123),
-		PUQ,
-		IMD, i32(-110),
-		MUL,
-		RET,
-		CAL, u32(5),
-		PRTF,
-		EXIT
-	);*/
-
-	//vm_t vm(img);
-	//vm.exec();
+	vm_t vm(img);
+	vm.exec();
 }

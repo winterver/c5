@@ -43,7 +43,7 @@ struct function
 	typeinfo tinfo;
 	char* name;
 	param_set params;
-	int addr;
+	bool hasbody;
 };
 
 struct variable
@@ -80,14 +80,16 @@ public:
 	{
 		(*this) << op << " " << num << "\n";
 	}
+	void fill(int op, const char* label)
+	{
+		(*this) << op << " " << label << "\n";
+	}
 };
 
 class parser
 {
 public:
-	parser(struct token* tok);
-
-	void parse();
+	void parse(struct token* tok);
 
 private:
 	// helper functions
@@ -119,6 +121,7 @@ private:
 	variable_set* curlocal;
 	int localoffset; // an offset relative bp, where the latest local
 					 // variable should be placed
+	int globaloffset; // an offset relative data, ditto but for global.
 
 	int token();
 	void match(int t);

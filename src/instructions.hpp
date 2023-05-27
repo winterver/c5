@@ -4,6 +4,9 @@ enum op_t : u8 {
 	EXIT,
 	PRTF, // printf("%d", acc32);
 	
+	// pseudo-instructions
+	LABL, // marks a label
+	
 	// IM: IMmediate, LO: LOad, ST: STore
 	// PU: PUsh, PO: POp.
 	// B: Byte, W: Word, D: Dword, Q: Qword
@@ -30,8 +33,8 @@ enum op_t : u8 {
 	POQ, 
 	
 	JMP, 
-	BNZ, 
-	BZ,	 
+	//BNZ, 
+	//BZ,	 
 	CAL, // call 
 	RET, 
 

@@ -85,34 +85,28 @@ function* function_set::get(char* name)
 	return r != end() ? &(*r) : nullptr;
 }
 
-parser::parser(struct token* tok)
-	: tok(tok)
-{ }
-
-void parser::parse()
+void parser::parse(struct token* tok)
 {
-	// setup entry
-	//img.fill_text(CAL, u32(), PRTF, EXIT);
-	cb.fill(CAL, 0);
-	cb.fill(PRTF);
-	cb.fill(EXIT);
+	cb.clear();
+	gvars.clear();
+	funcs.clear();
 
-	// parse & code generation
+	this->tok = tok;
+	globaloffset = 0;
+
+	// setup entry
+	cb.fill(CAL, "main");
+	cb.fill(PRTF);
+	cb.fill(EXIT);	
+
+	// parsing & code generation
 	program();
 
 	// set the operand of the CAL to addr of main()
 	char* name = string_pool::get_instance().add("main");
 	function* main = funcs.get(name);
 
-	if (main != nullptr)
-	{
-		if (main->addr == -1)
-		{
-			error("main() not implemented");
-		}
-		//*(u32*)&img.text[1] = main->addr;
-	}
-	else
+	if (main == nullptr)
 	{
 		error("main() not found");
 	}
@@ -163,15 +157,9 @@ void parser::access(char* name, int& size)
 	get_variable(name, addr, clazz);
 
 	if (clazz == 0)
-	{
-		printf("required: %s, addr: %p\n", name, name);
-		for(auto& x : gvars)
-		{
-			printf("gvar: %s, addr: %p\n", x.name, x.name);
-		}
+	{	
 		error("unknown variable");
 	}
-
 	
 	if (tinfo.depth == 0)
 	{
@@ -311,7 +299,7 @@ void parser::funcdef()
 	func.tinfo = tinfo;
 	func.name = name;
 	func.params = params;
-	func.addr = -1; // -1 indicates forward declaration
+	func.hasbody = false;
 
 	// check if the declaration already exists,
 	function* decl = funcs.get(name);
@@ -328,19 +316,12 @@ void parser::funcdef()
 
 	// if it's a function definition
 	if (token() == '{')
-	{
-		if (decl != nullptr)
+	{	
+		if (func.hasbody)
 		{
-			// check if the found declaration
-			// has function body
-			if (decl->addr != -1)
-			{
-				error("function redefinition");
-			}
+			error("function redefinition");
 		}
-
-		// get start address of the function body
-		func.addr = 0;//img.text.size();
+		func.hasbody = true;
 
 		// register/update function info
 		if (decl == nullptr)
@@ -349,19 +330,25 @@ void parser::funcdef()
 		}
 		else
 		{
-			decl->addr = func.addr;
-			// update parameter names
-			decl->params = std::move(func.params);
+			*decl = func;
 		}
 		
 		// parse function body
 		curfunc = &func;
 		curlocal = nullptr;
 		localoffset = 0;
-		//img.fill_text(ADS, i16());
-		cb.fill(ADS, 0);
+
+		cb.fill(LABL, func.name);
+		std::string s = cb.str();
+		cb.str(""); // clear() or flush() doesn't work
+		
 		block();
-		//*(i16*)&img.text[func.addr+1] = localoffset;
+		std::string s2 = cb.str();
+		cb.str("");
+
+		cb << s;
+		cb.fill(ADS, localoffset);
+		cb << s2;
 	}
 	else
 	{
@@ -395,25 +382,23 @@ NextVar:
 	else
 	{
 		// alloc memory for the variable in data
-		var.addr = 0;//img.data.size();
+		var.addr = globaloffset;
 		// TODO support initialization
 		// TODO support struct & string & array & float
 		if (var.tinfo.depth == 0)
 		{
-			/*
 			switch(var.tinfo.type)
 			{
-			case CHAR: img.fill_data(i8()); break;
-			case SHORT: img.fill_data(i16()); break;
-			case INT: img.fill_data(i32()); break;
-			case LONG: img.fill_data(i64()); break;
+			case CHAR: globaloffset += 1; break;
+			case SHORT: globaloffset += 2; break; 
+			case INT: globaloffset += 4; break;
+			case LONG: globaloffset += 8; break;
 			default: error("unsupported type"); break;
 			}
-			*/	
 		}
 		else
 		{
-			//img.fill_data(u64());
+			globaloffset += 8;
 		}
 		gvars.push_back(var);
 	}
@@ -511,7 +496,6 @@ void parser::block()
 			if (next == '(')
 			{
 				// function call
-				//call(img.text);
 				call(cb);
 			}
 			else
@@ -532,11 +516,9 @@ void parser::block()
 			else
 			{
 				// return with a value
-				//expression(img.text);
 				expression(cb);
 				match(';');
 			}
-			//img.fill_text(RET);
 			cb.fill(RET);
 		}
 		else
@@ -546,7 +528,6 @@ void parser::block()
 		}
 	}
 
-	//img.fill_text(RET);
 	cb.fill(RET);
 	
 	curlocal = curlocal->parent;
@@ -633,11 +614,6 @@ void parser::call(codebuf& buf)
 	{
 		error("function not found");
 	}	
-
-	if (curfunc->addr == -1)
-	{
-		error("unimplemented function");
-	}
 	
 	npassed = 0;
 	call_stack_size = 0;
@@ -650,23 +626,8 @@ void parser::call(codebuf& buf)
 		error("too few arguments");
 	}	
 
-	/*buf.fill(
-		CAL, u32(curfunc->addr), 
-		ADS, i16(call_stack_size)
-	);*/
-	buf.fill(CAL, curfunc->addr);
-	buf.fill(ADS, call_stack_size);
-
-	// if curfunc is a forward declaration
-	// its implementation will be found later
-	// add it to the resolve list
-	/*if (curfunc->addr == -1)
-	{
-		// TODO add to the resolve list
-		// 因为用了独立codebuf的缘故
-		// CAL的operand在text内的位置很难计算。。。
-		// 还是输出汇编，然后用汇编器汇编比较好。
-	}*/
+	buf.fill(CAL, curfunc->name);
+	buf.fill(ADS, call_stack_size);	
 }
 
 void parser::arglist(codebuf& _buf)

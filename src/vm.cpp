@@ -62,8 +62,8 @@ void vm_t::exec()
 		case POQ: acc = pop<i64>(); break;
 
 		case JMP: op = text + next<u32>(); break;
-		case BNZ: if(acc) op += next<i32>(); else next<i32>(); break;
-		case BZ:  if(!acc) op += next<i32>(); else next<i32>(); break;
+		//case BNZ: if(acc) op += next<i32>(); else next<i32>(); break;
+		//case BZ:  if(!acc) op += next<i32>(); else next<i32>(); break;
 		case CAL: 
 				  push<u32>(op + 4 - text);			// push eip
 				  op = text + next<u32>();			// jmp addr
