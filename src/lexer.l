@@ -3,7 +3,7 @@
 %option nounistd
 
 %{
-#include "tokens.hpp"
+#include "parser.hpp"
 #ifdef _WIN32
 #  include <io.h>
 #  define isatty _isatty 

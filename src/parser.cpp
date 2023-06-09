@@ -1,115 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
-
-#include "types.hpp"
-#include "image.hpp"
-#include "tokens.hpp"
+#include <string.h>
+#include <algorithm>
 #include "parser.hpp"
 #include "string_pool.hpp"
-#include "instructions.hpp"
-
-bool typeinfo::operator==(typeinfo& rhs)
-{
-	return (type == rhs.type
-		&& struct_name == rhs.struct_name
-		&& depth == rhs.depth);
-}
-
-bool typeinfo::operator!=(typeinfo& rhs)
-{
-	return !this->operator==(rhs);
-}
-
-param* param_set::get(char* name)
-{
-	auto r = std::find_if(begin(), end(),
-		[name] (auto& x) { return name == x.name; });
-	return r != end() ? &(*r) : nullptr;
-}
-
-bool param_set::operator==(param_set& rhs)
-{
-	if (size() != rhs.size())
-	{
-		return false;
-	}
-
-	for(int i = 0; i < size(); i++)
-	{
-		if (at(i).tinfo != rhs[i].tinfo)
-		{
-			return false;
-		}
-	}
-	return true;
-}
-
-bool param_set::operator!=(param_set& rhs)
-{
-	return !this->operator==(rhs);
-}
-
-variable_set::variable_set(variable_set* parent)
-	: parent(parent)
-{ }
-
-variable* variable_set::get(char* name)
-{
-	auto r = std::find_if(begin(), end(),
-		[name] (auto& x) { return name == x.name; });
-	return r != end() ? &(*r) : nullptr;
-}
-
-variable* variable_set::search(char* name)
-{
-	auto r = std::find_if(begin(), end(),
-		[name] (auto& x) { return name == x.name; });
-	if (r != end())
-	{
-		return &(*r);
-	}
-	else
-	{
-		if (parent != nullptr)
-		{
-			return parent->search(name);
-		}
-		return nullptr;
-	}
-}
-
-function* function_set::get(char* name)
-{
-	auto r = std::find_if(begin(), end(),
-		[name] (auto& x) { return name == x.name; });
-	return r != end() ? &(*r) : nullptr;
-}
 
 void parser::parse(struct token* tok)
 {
-	cb.clear();
-	gvars.clear();
-	funcs.clear();
-
 	this->tok = tok;
-	globaloffset = 0;
-
-	// setup entry
-	cb.fill(CAL, "main");
-	cb.fill(PRTF);
-	cb.fill(EXIT);	
 
 	// parsing & code generation
 	program();
-
-	// set the operand of the CAL to addr of main()
-	char* name = string_pool::get_instance().add("main");
-	function* main = funcs.get(name);
-
-	if (main == nullptr)
-	{
-		error("main() not found");
-	}
 }
 
 void parser::error(const char* errmsg)
@@ -118,87 +19,56 @@ void parser::error(const char* errmsg)
 	exit(-1);
 }
 
-void parser::get_variable(char* name, int& addr, int& clazz)
+Variable* parser::find_variable(char* name)
 {
-	clazz = 0;
-	variable* v = curlocal->search(name);
-	if (v != nullptr)
+	auto find = [](List<Variable*>& vars, char* name)
 	{
-		addr = v->addr;
-		tinfo = v->tinfo;
-		clazz = 1;
-	}
-	else
-	{
-		param* p = curfunc->params.get(name);
-		if (p != nullptr)
-		{
-			addr = p->addr;
-			tinfo = p->tinfo;
-			clazz = 2;
-		}
-		else
-		{
-			v = gvars.get(name);
-			if (v != nullptr)
+		auto it = std::find_if(
+			vars.begin(), 
+			vars.end(), 
+			[name](auto lhs)
 			{
-				addr = v->addr;
-				tinfo = v->tinfo;
-				clazz = 3;
+				return lhs->name == name;
 			}
-		}
-	}
-}
+		);
+		return it != vars.end() ? (*it) : nullptr;
+	};
 
-void parser::access(char* name, int& size)
-{
-	int addr, clazz;
-	// typeinfo stored in tinfo
-	get_variable(name, addr, clazz);
-
-	if (clazz == 0)
-	{	
-		error("unknown variable");
-	}
-	
-	if (tinfo.depth == 0)
+	// search block tree
+	for(Block* blk = curblk; blk != nullptr; blk = blk->parent)
 	{
-		switch(tinfo.type)
+		Variable* var = find(blk->locals, name);
+		if (var != nullptr)
 		{
-		case CHAR: size = 1; break; 
-		case SHORT: size = 2; break;
-		case INT: size = 4; break; 
-		case LONG: size = 8; break;
-		default: error("unsupported type"); break;
+			return var;
 		}
 	}
-	else
+
+	// search parameters
+	if (cursig != nullptr)
 	{
-		size = 8;
+		Variable* var = find(cursig->params, name);
+		if (var != nullptr)
+		{
+			return var;
+		}
 	}
 
-	// local variable
-	if (clazz == 1)
-	{	
-		cb.fill(LEA, addr);
-	}	
-	// parameter
-	else if (clazz == 2)
-	{	
-		cb.fill(LEA, addr+8);
-	}
-	// global variable
-	else if (clazz == 3)
-	{	
-		cb.fill(GLO, addr);
-	}
+	// search globals
+	return find(globals, name);
 }
 
-function* parser::get_function(char* name)
+Function* parser::find_function(char* name)
 {
-	auto r = std::find_if(funcs.begin(), funcs.end(),
-		[name] (auto& x) { return name == x.name; });
-	return r != funcs.end() ? &(*r) : nullptr;
+	auto it = std::find_if(
+		functions.begin(), 
+		functions.end(), 
+		[name](auto lhs)
+		{
+			return lhs->sig->name == name;
+		}
+	);
+	return it != functions.end() ? (*it) : nullptr;
 }
 
 int parser::token()
@@ -245,8 +115,10 @@ void parser::program()
 	}
 }
 
-void parser::type()
+Type parser::type()
 {
+	Type t;
+
 	switch(token())
 	{
 	case VOID:
@@ -254,153 +126,96 @@ void parser::type()
 	case SHORT:
 	case INT:
 	case LONG:
-		tinfo.type = token();
-		match(tinfo.type);
-		tinfo.struct_name = nullptr;
+		t.id = token();
+		match(t.id);
 		break;
 	case STRUCT:
-		tinfo.type = STRUCT;
-		match(STRUCT);
-		tinfo.struct_name = tok->sval;
-		match(IDENTIFIER);
+		error("struct is currently not supported.");
 		break;
 	default:
 		error("a type needed");
 	}
+
+	return t;
 }
 
-void parser::depth()
+int parser::depth()
 {
-	for(tinfo.depth = 0; token() == '*'; tinfo.depth++)
+	int dep;
+	for(dep = 0; token() == '*'; dep++)
 	{
 		match('*');
 	}
+	return dep;
 }
 
 void parser::structdef()
 {
-	match(STRUCT);
-	match(IDENTIFIER);
-	match('{');
-	match('}');
-	match(';');
+	error("struct is currently not supported.");
 }
 
 void parser::funcdef()
 {
-	type();
-	depth();
-	typeinfo ret_type = tinfo;
+	Type type = this->type();
+	type.depth = this->depth();
+
 	char* name = tok->sval;
 	match(IDENTIFIER);
+
+	auto it = std::find_if(
+		functions.begin(), 
+		functions.end(), 
+		[name](auto& lhs) {
+			return lhs->sig->name == name;
+		}
+	);
+
+	Signature* sig = new Signature(type, name);
+	cursig = sig;
 	paramlist();
-
-	function func;	
-	func.tinfo = tinfo;
-	func.name = name;
-	func.params = params;
-	func.hasbody = false;
-
+	
+	// TODO
 	// check if the declaration already exists,
-	function* decl = funcs.get(name);
+	// if yes, check if both declaration are the same	
 
-	// if yes, check if both declaration are the same
-	if (decl != nullptr)
-	{	
-		if (decl->tinfo != func.tinfo
-			|| decl->params != func.params)
-		{
-			error("declaration mismatch");
-		}
-	}
+	Block* body = nullptr;
+	body = block();
 
-	// if it's a function definition
-	if (token() == '{')
-	{	
-		if (func.hasbody)
-		{
-			error("function redefinition");
-		}
-		func.hasbody = true;
-
-		// register/update function info
-		if (decl == nullptr)
-		{
-			funcs.push_back(func);
-		}
-		else
-		{
-			*decl = func;
-		}
-		
-		// parse function body
-		curfunc = &func;
-		curlocal = nullptr;
-		localoffset = 0;
-
-		cb.fill(LABL, func.name);
-		std::string s = cb.str();
-		cb.str(""); // clear() or flush() doesn't work
-		
-		block();
-		std::string s2 = cb.str();
-		cb.str("");
-
-		cb << s;
-		cb.fill(ADS, localoffset);
-		cb << s2;
+	if (it == functions.end())
+	{
+		functions.push_back(new Function(sig, body));
 	}
 	else
 	{
-		// else it's a forward declaration
-		match(';');
+		error("function redefinition");
+	}
 
-		if (decl == nullptr)
-		{
-			funcs.push_back(func);
-		}
-	}	
+	cursig = nullptr;
 }
 
 void parser::gvardef()
 {
-	type();
-
+	Type type = this->type();
 NextVar:
-	depth();
+	type.depth = this->depth();
 	char* name = tok->sval;
 	match(IDENTIFIER);
 
-	variable var;
-	var.tinfo = tinfo;
-	var.name = name;	
+	auto it = std::find_if(
+		globals.begin(), 
+		globals.end(), 
+		[name](auto& lhs) {
+			return lhs->name == name;
+		}
+	);
 
-	if (gvars.get(var.name))
+	if (it == globals.end())
 	{
-		error("global variable redefinition");
+		globals.push_back(new Variable(type, name));
 	}
 	else
 	{
-		// alloc memory for the variable in data
-		var.addr = globaloffset;
-		// TODO support initialization
-		// TODO support struct & string & array & float
-		if (var.tinfo.depth == 0)
-		{
-			switch(var.tinfo.type)
-			{
-			case CHAR: globaloffset += 1; break;
-			case SHORT: globaloffset += 2; break; 
-			case INT: globaloffset += 4; break;
-			case LONG: globaloffset += 8; break;
-			default: error("unsupported type"); break;
-			}
-		}
-		else
-		{
-			globaloffset += 8;
-		}
-		gvars.push_back(var);
+		error("global variable redefinition");
 	}
 	
 	if (token() == ',')
@@ -413,8 +228,6 @@ NextVar:
 
 void parser::paramlist()
 {
-	params.clear();
-
 	match('(');
 
 	if (token() == ')')
@@ -423,40 +236,29 @@ void parser::paramlist()
 		return;
 	}
 
-	int offset = 0;
-
 NextParam:	
-	type();
-	depth();
+	Type type = this->type();
+	type.depth = this->depth();
+
 	char* name = tok->sval;
 	match(IDENTIFIER);
 
-	param p;
-	p.tinfo = tinfo;
-	p.name = name;
-	p.addr = offset;
-
-	if (p.tinfo.depth == 0)
-	{
-		switch(p.tinfo.type)
-		{
-		case CHAR: offset += 1; break;
-		case SHORT: offset += 2; break;
-		case INT: offset += 4; break;
-		case LONG: offset += 8; break;
-		default: error("unsupported type"); break;
+	auto it = std::find_if(
+		cursig->params.begin(), 
+		cursig->params.end(), 
+		[name](auto lhs) {
+			return lhs->name == name;
 		}
+	);
+	
+	if (it == cursig->params.end())
+	{
+		cursig->params.push_back(new Variable(type, name));
 	}
 	else
 	{
-		offset += 8;
+		error("parameter redefinition");
 	}
-
-	if (params.get(p.name))
-	{
-		error("param redefinition");
-	}
-	params.push_back(p);
 
 	if (token() == ',')
 	{
@@ -467,12 +269,13 @@ NextParam:
 	match(')');
 }
 
-void parser::block()
+Block* parser::block()
 {
-	match('{');
+	Block* blk = new Block;
+	blk->parent = curblk;
+	curblk = blk;
 
-	variable_set local(curlocal);
-	curlocal = &local;
+	match('{');
 
 	while(token() != '}')
 	{
@@ -484,7 +287,7 @@ void parser::block()
 		else if (token() == '{')
 		{
 			// anonymous block
-			block();
+			blk->stmts.push_back(block());
 		}
 		else if (token() == IDENTIFIER)
 		{
@@ -496,17 +299,19 @@ void parser::block()
 			if (next == '(')
 			{
 				// function call
-				call(cb);
+				blk->stmts.push_back(call());
 			}
 			else
 			{
 				// assignment
-				assign();
-				match(';');
+				blk->stmts.push_back(assign());
 			}
+			match(';');
 		}
 		else if (token() == RETURN)
 		{
+			ReturnStmt* ret = new ReturnStmt;
+
 			match(RETURN);
 			if (token() == ';')
 			{
@@ -516,10 +321,11 @@ void parser::block()
 			else
 			{
 				// return with a value
-				expression(cb);
+				ret->expr = expression();
 				match(';');
 			}
-			cb.fill(RET);
+
+			blk->stmts.push_back(ret);
 		}
 		else
 		{
@@ -528,62 +334,44 @@ void parser::block()
 		}
 	}
 
-	cb.fill(RET);
-	
-	curlocal = curlocal->parent;
 	match('}');
+
+	curblk = blk->parent;
+	return blk;
 }
 
 void parser::lvardef()
 {
-	type();
-
+	Type type = this->type();
 NextVar:
-	depth();
+	type.depth = this ->depth();
 
 	struct token* bak = tok;
 	
 	char* name = tok->sval;
 	match(IDENTIFIER);
 
-	variable var;
-	var.tinfo = tinfo;
-	var.name = name;	
+	auto it = std::find_if(
+		curblk->locals.begin(), 
+		curblk->locals.end(), 
+		[name](auto& lhs) {
+			return lhs->name == name;
+		}
+	);
 
-	if (curlocal->get(var.name))
+	if (it == curblk->locals.end())
 	{
-		error("local variable redefinition");
+		curblk->locals.push_back(new Variable(type, name));
 	}
 	else
 	{
-		// alloc memory for the variable in data
-		var.addr = localoffset;
-		// TODO support initialization
-		// TODO support struct & string & array & float
-		if (var.tinfo.depth == 0)
-		{
-			switch(var.tinfo.type)
-			{
-			case CHAR: localoffset -= 1; break;
-			case SHORT: localoffset -= 2; break;
-			case INT: localoffset -= 4; break;
-			case LONG: localoffset -= 8; break;
-			default: error("unsupported type"); break;
-			}
-		}
-		else
-		{
-			localoffset -= 8;
-		}
-		curlocal->push_back(var);
+		error("local variable redefinition");
 	}
 
 	if (token() == '=')
 	{
 		tok = bak;
-		assign();
-		// this works only if assign()
-		// doesn't change tinfo.
+		curblk->stmts.push_back(assign());
 	}
 	
 	if (token() == ',')
@@ -594,323 +382,395 @@ NextVar:
 	match(';');
 }
 
-void parser::assign()
+Assignment* parser::assign()
 {
+	Assignment* assignment = new Assignment;
+
 	char* name = tok->sval;
 	match(IDENTIFIER);
 	match('=');
 
-	expression(cb);
-	cb.fill(PUQ);
-	
-	int size;
-	access(name, size);
-
-	switch(size)
-	{	
-	case 1:	cb.fill(STB); break;
-	case 2:	cb.fill(STW); break;
-	case 4:	cb.fill(STD); break;
-	case 8:	cb.fill(STQ); break;
+	Variable* var = find_variable(name);
+	if (var == nullptr)
+	{
+		error("undefined variable");
 	}
+
+	assignment->left = new LeftExpression(var);
+	assignment->right = expression();
+	return assignment;
 }
 
-void parser::call(codebuf& buf)
+CallStmt* parser::call()
 {
 	char* name = tok->sval;
 	match(IDENTIFIER);
 
-	curfunc = get_function(name);
-	if (curfunc == nullptr)
+	Function* func = find_function(name);
+	if (func == nullptr)
 	{
-		error("function not found");
-	}	
+		error("undefined function");
+	}
 	
-	npassed = 0;
-	call_stack_size = 0;
-	match('('); // for the sake of recursion
-	arglist(buf);
-	match(')');
+	List<Expression*> args;
+	arglist(func, args);
 
-	if (npassed < curfunc->params.size())
-	{
-		error("too few arguments");
-	}	
-
-	buf.fill(CAL, curfunc->name);
-	buf.fill(ADS, call_stack_size);	
+	return new CallStmt(func, args);
 }
 
-void parser::arglist(codebuf& _buf)
+void parser::arglist(Function* func, List<Expression*>& args)
 {
+	match('(');
 	if (token() == ')')
 	{
+		match(')');
 		return;
 	}
 
-	codebuf buf;
-	expression(buf);
-
-	if (npassed >= curfunc->params.size())
-	{
-		error("too many arguments");
-	}
-
-	param p = curfunc->params[npassed];
-	switch(p.tinfo.type)
-	{
-	case CHAR: buf.fill(PUB); call_stack_size += 1; break;
-	case SHORT: buf.fill(PUW); call_stack_size += 2; break;
-	case INT: buf.fill(PUD); call_stack_size += 4; break;
-	case LONG: buf.fill(PUQ); call_stack_size += 8; break;
-	}
-
-	npassed++;
+NextArg:
+	args.push_back(expression());
+	// TODO: type check
 
 	if (token() == ',')
 	{
 		match(',');
-		arglist(_buf);
+		goto NextArg;
 	}
-
-	_buf << buf.str();
+	match(')');
 }
 
-void parser::expression(codebuf& buf)
+Expression* parser::expression()
 {
-	term1(buf);
+	return term1();
 }
 
-void parser::term1(codebuf& buf)
+LeftExpression* parser::left_expression()
 {
-	term2(buf);
+	char* name = tok->sval;
+	match(IDENTIFIER);
+
+	Variable* var = find_variable(name);
+	if (var == nullptr)
+	{
+		error("undefined variable");
+	}
+	return new LeftExpression(var);
+}
+
+Expression* parser::term1()
+{
+	ChainedExpression* cexp = nullptr;
+	cexp = new ChainedExpression;
+
+	cexp->lhs = term2();
 	while (token() == LOGIC_OR)
 	{
-		int t = token();
-		match(t);
-		buf.fill(PUQ);
-		term2(buf);
+		int tk = token();
+		match(tk);
+		cexp->rhs.push_back(
+			std::make_pair(tk, term2()));
+	}
 
-		buf.fill(LOR);
+	if (cexp->rhs.empty())
+	{
+		auto lhs = cexp->lhs;
+		delete cexp;
+		return lhs;
+	}
+	else
+	{
+		return cexp;
 	}
 }
 
-void parser::term2(codebuf& buf)
+Expression* parser::term2()
 {
-	term3(buf);
+	ChainedExpression* cexp = nullptr;
+	cexp = new ChainedExpression;
+
+	cexp->lhs = term3();
 	while (token() == LOGIC_AND)
 	{
-		int t = token();
-		match(t);
-		buf.fill(PUQ);
-		term3(buf);
+		int tk = token();
+		match(tk);
+		cexp->rhs.push_back(
+			std::make_pair(tk, term3()));
+	}
 
-		buf.fill(LAN);
+	if (cexp->rhs.empty())
+	{
+		auto lhs = cexp->lhs;
+		delete cexp;
+		return lhs;
+	}
+	else
+	{
+		return cexp;
 	}
 }
 
-void parser::term3(codebuf& buf)
+Expression* parser::term3()
 {
-	term4(buf);
+	ChainedExpression* cexp = nullptr;
+	cexp = new ChainedExpression;
+
+	cexp->lhs = term4();
 	while (token() == '|')
 	{
-		int t = token();
-		match(t);
-		buf.fill(PUQ);
-		term4(buf);
+		int tk = token();
+		match(tk);
+		cexp->rhs.push_back(
+			std::make_pair(tk, term4()));
+	}
 
-		buf.fill(OR);
+	if (cexp->rhs.empty())
+	{
+		auto lhs = cexp->lhs;
+		delete cexp;
+		return lhs;
+	}
+	else
+	{
+		return cexp;
 	}
 }
 
-void parser::term4(codebuf& buf)
+Expression* parser::term4()
 {
-	term5(buf);
+	ChainedExpression* cexp = nullptr;
+	cexp = new ChainedExpression;
+
+	cexp->lhs = term5();
 	while (token() == '^')
 	{
-		int t = token();
-		match(t);
-		buf.fill(PUQ);
-		term5(buf);
+		int tk = token();
+		match(tk);
+		cexp->rhs.push_back(
+			std::make_pair(tk, term5()));
+	}
 
-		buf.fill(XOR);
+	if (cexp->rhs.empty())
+	{
+		auto lhs = cexp->lhs;
+		delete cexp;
+		return lhs;
+	}
+	else
+	{
+		return cexp;
 	}
 }
 
-void parser::term5(codebuf& buf)
+Expression* parser::term5()
 {
-	term6(buf);
+	ChainedExpression* cexp = nullptr;
+	cexp = new ChainedExpression;
+
+	cexp->lhs = term6();
 	while (token() == '&')
 	{
-		int t = token();
-		match(t);
-		buf.fill(PUQ);
-		term6(buf);
+		int tk = token();
+		match(tk);
+		cexp->rhs.push_back(
+			std::make_pair(tk, term6()));
+	}
 
-		buf.fill(AND);
+	if (cexp->rhs.empty())
+	{
+		auto lhs = cexp->lhs;
+		delete cexp;
+		return lhs;
+	}
+	else
+	{
+		return cexp;
 	}
 }
 
-void parser::term6(codebuf& buf)
+Expression* parser::term6()
 {
-	term7(buf);
+	ChainedExpression* cexp = nullptr;
+	cexp = new ChainedExpression;
+
+	cexp->lhs = term7();
 	while (token() == EQUAL || token() == NOT_EQUAL)
 	{
-		int t = token();
-		match(t);
-		buf.fill(PUQ);
-		term7(buf);
-
-        switch(t)
-		{
-		case EQUAL: buf.fill(EQ); break;
-		case NOT_EQUAL: buf.fill(NE); break;
-		}
+		int tk = token();
+		match(tk);
+		cexp->rhs.push_back(
+			std::make_pair(tk, term7()));
     }
+	
+	if (cexp->rhs.empty())
+	{
+		auto lhs = cexp->lhs;
+		delete cexp;
+		return lhs;
+	}
+	else
+	{
+		return cexp;
+	}
 }
 
-void parser::term7(codebuf& buf)
+Expression* parser::term7()
 {
-	term8(buf);
+	ChainedExpression* cexp = nullptr;
+	cexp = new ChainedExpression;
+
+	cexp->lhs = term8();
 	while (token() == '<' 
 		|| token() == '>'
 		|| token() == LESS_EQUAL
 		|| token() == GREATER_EQUAL)
 	{
-		int t = token();
-		match(t);
-		buf.fill(PUQ);
-		term8(buf);
-
-        switch(t)
-		{
-		case '<': buf.fill(LT); break;
-		case '>': buf.fill(GT); break;
-		case LESS_EQUAL: buf.fill(LE); break;
-		case GREATER_EQUAL: buf.fill(GE); break;
-		}
+		int tk = token();
+		match(tk);
+		cexp->rhs.push_back(
+			std::make_pair(tk, term8()));
     }	
+
+	if (cexp->rhs.empty())
+	{
+		auto lhs = cexp->lhs;
+		delete cexp;
+		return lhs;
+	}
+	else
+	{
+		return cexp;
+	}
 }
 
-void parser::term8(codebuf& buf)
+Expression* parser::term8()
 {
-	term9(buf);
+	ChainedExpression* cexp = nullptr;
+	cexp = new ChainedExpression;
+
+	cexp->lhs = term9();
 	while (token() == LSHIFT || token() == RSHIFT)
 	{
-		int t = token();
-		match(t);
-		buf.fill(PUQ);
-		term9(buf);
-
-        switch(t)
-		{
-		case LSHIFT: buf.fill(SHL); break;
-		case RSHIFT: buf.fill(SHR); break;
-		}
+		int tk = token();
+		match(tk);
+		cexp->rhs.push_back(
+			std::make_pair(tk, term9()));
     }
+
+	if (cexp->rhs.empty())
+	{
+		auto lhs = cexp->lhs;
+		delete cexp;
+		return lhs;
+	}
+	else
+	{
+		return cexp;
+	}
 }
 
-void parser::term9(codebuf& buf)
+Expression* parser::term9()
 {
-	term10(buf);
+	ChainedExpression* cexp = nullptr;
+	cexp = new ChainedExpression;
+
+	cexp->lhs = term10();
 	while (token() == '+' || token() == '-')
 	{
-		int t = token();
-		match(t);
-		buf.fill(PUQ);
-		term10(buf);
-
-        switch(t)
-		{
-		case '+': buf.fill(ADD); break;
-		case '-': buf.fill(SUB); break;
-		}
+		int tk = token();
+		match(tk);
+		cexp->rhs.push_back(
+			std::make_pair(tk, term10()));
     }
+
+	if (cexp->rhs.empty())
+	{
+		auto lhs = cexp->lhs;
+		delete cexp;
+		return lhs;
+	}
+	else
+	{
+		return cexp;
+	}
 }
 
-void parser::term10(codebuf& buf)
+Expression* parser::term10()
 {
-	factor(buf);
+	ChainedExpression* cexp = nullptr;
+	cexp = new ChainedExpression;
+
+	cexp->lhs = factor();
 	while (token() == '*' || token() == '/' || token() == '%')
 	{
-		int t = token();
-		match(t);
-		buf.fill(PUQ);
-		factor(buf);
-
-        switch(t)
-		{
-		case '*': buf.fill(MUL); break;
-		case '/': buf.fill(DIV); break;
-		case '%': buf.fill(MOD); break;
-		}
+		int tk = token();
+		match(tk);
+		cexp->rhs.push_back(
+			std::make_pair(tk, factor()));
     }
+
+	if (cexp->rhs.empty())
+	{
+		auto lhs = cexp->lhs;
+		delete cexp;
+		return lhs;
+	}
+	else
+	{
+		return cexp;
+	}
 }
 
-void parser::factor(codebuf& buf)
+Expression* parser::factor()
 {
+	Expression* result = nullptr;
+
 	if (token() == '(') {
         match('(');
-        expression(buf);
+        result = expression();
         match(')');
 	}
 	else if (token() == '-')
 	{
 		match('-');
-		expression(buf);
-		buf.fill(NEG);
+		result = new UnaryExpression('-', expression());
+	}
+	else if (token() == '~')
+	{
+		match('~');
+		result = new UnaryExpression('~', expression());
 	}
 	else if (token() == '&')
 	{
 		match('&');
-		char* name = tok->sval;
-		match(IDENTIFIER);
-
-		int size;
-		access(name, size);
+		result = new UnaryExpression('&', expression());
 	}
-	else if (token() == IDENTIFIER)
+	else if (token() == '*')
 	{
-		struct token* prev = tok;
-		match(IDENTIFIER);
-		int t = token();
-		tok = prev;
-
-		if (t == '(')
-		{
-			function* bak_curfunc = curfunc;
-			int bak_npassed = npassed;
-			int bak_call_stack_size = call_stack_size;
-			call(buf);
-			npassed = bak_npassed;
-			call_stack_size = bak_call_stack_size;
-			curfunc = bak_curfunc;
-		}
-		else
-		{
-			// variable access
-			char* name = tok->sval;
-			match(IDENTIFIER);
-
-			int size; // the size of the value pointed by acc
-			access(name, size); // address of the variable is now in acc
-			switch(size)
-			{
-			case 1: buf.fill(LOB); break;
-			case 2: buf.fill(LOW); break;
-			case 4: buf.fill(LOD); break;
-			case 8: buf.fill(LOQ); break;
-			}
-		}
+		match('*');
+		result = new UnaryExpression('*', expression());
 	}
 	else if (token() == NUMBER)
 	{
-		auto num = tok->ival;
+		long long ival = tok->ival;
 		match(NUMBER);
-		buf.fill(IMQ, i64(num));
+		result = new IntegerLiteral(ival);
+	}
+	else if (token() == DECIMAL)
+	{
+		long double fval = tok->fval;
+		match(DECIMAL);
+		result = new DecimalLiteral(fval);
+	}
+	else if (token() == STRING)
+	{
+		char* sval = tok->sval;
+		match(STRING);
+		result = new StringLiteral(sval);
 	}
 	else
 	{
-		error("unexpected expression");
+		result = left_expression();
 	}
+
+	return result;
 }

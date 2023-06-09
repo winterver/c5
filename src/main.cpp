@@ -1,15 +1,13 @@
 #include <stdio.h>
+#include <string.h>
 #include <vector>
 #include <string>
 #include <iostream>
 
-#include "vm.hpp"
-#include "image.hpp"
+//#include "vm.hpp"
 #include "parser.hpp"
-#include "tokens.hpp"
 #include "string_pool.hpp"
-#include "instructions.hpp"
-#include "assembler.hpp"
+#include "codegen.hpp"
 
 int yylex(void);
 extern int yyleng;
@@ -33,7 +31,7 @@ void tokenize(std::vector<token>& toks, FILE* in = stdin)
 		case IDENTIFIER: tok.sval = strpool.add(yytext); break;
 		case NUMBER: tok.ival = std::stoll(yytext, nullptr, 0); break;
 		case DECIMAL: tok.fval = std::stod(yytext);
-		case STRING: // TODO process escape characters
+		case STRING: // TODO process escape sequences
 			yytext[yyleng-1] = 0; 
 			tok.sval = strpool.add(yytext+1); 
 			break;
@@ -55,18 +53,17 @@ int main()
 	parser pr;
 	pr.parse(toks.data());
 
-	print_assembly(pr.cb.str());
-	image img = assemble(pr.cb.str());
-	img.data.reserve(1024);
+	codegen gen(pr.globals, pr.functions);
+	gen.generate();
 
-	/*
-	printf("total size: %zd\n", img.text.size());
-	for(u8 x : img.text)
+	/*for(auto var : pr.globals)
 	{
-		printf("%d ", x);
+		printf("Global %s\n", var->name);
 	}
-	*/
 
-	vm_t vm(img);
-	vm.exec();
+	for(auto func : pr.functions)
+	{
+		printf("Function %s()\n", func->sig->name);
+		func->body->print(1);
+	}*/
 }

@@ -5,6 +5,8 @@ add_executable(c5
 	src/main.cpp 
 	src/lex.yy.cpp
 	src/parser.cpp
-	src/assembler.cpp
-	src/vm.cpp
+	src/codegen.cpp
+	#src/vm.cpp
 )
+
+target_compile_options(c5 PRIVATE /wd4005)

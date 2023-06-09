@@ -1,8 +1,12 @@
-int m();
+int g_a;
+
+int max() {}
+
+long* g_pb;
 
 int main()
 {
-	int a=123, b=233, c=a|b;
+	int a=123, b=233, c=a+b;
 	return c;
-	m();
+	max(a, b, c);
 }
