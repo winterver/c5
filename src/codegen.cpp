@@ -1,6 +1,10 @@
 #include "codegen.hpp"
 #include <typeinfo>
 
+#define VISIT(stmt, type, visitor) \
+	(dynamic_cast<type>(stmt)) \
+	{ visitor((type) stmt); }
+
 codegen::codegen(
 	List<Variable*>& globals, 
 	List<Function*>& functions
@@ -13,26 +17,23 @@ void codegen::generate()
 {
 	for(auto func : functions)
 	{
+		// TODO
+		// print label
+		// calculate local stack size
+		// replace the variable name after LEA with offset
 		visit(func->body);
 	}
 }
 
 void codegen::visit(Statement* stmt)
 {
-#define VISIT(type, visitor) \
-	(dynamic_cast<type>(stmt)) \
-	{ visitor((type) stmt); }
-
-	if VISIT(Block*, visit_block)
-	else if VISIT(Assignment*, visit_assign)
-	else if VISIT(LeftExpression*, visit_left_expression)
-	else if VISIT(ChainedExpression*, visit_chained_expression)
-	else if VISIT(IntegerLiteral*, visit_integer_literal)
-	else if VISIT(CallStmt*, visit_call)
-	else if VISIT(ReturnStmt*, visit_return)
+	if VISIT(stmt, Block*, visit_block)
+	else if VISIT(stmt, Assignment*, visit_assign)
+	else if VISIT(stmt, ChainedExpression*, visit_chained_expression)
+	else if VISIT(stmt, Factor*, visit_factor)
+	else if VISIT(stmt, CallStmt*, visit_call)
+	else if VISIT(stmt, ReturnStmt*, visit_return)
 	else { printf("unknown node: %s\n", typeid(*stmt).name()); }
-
-#undef VISIT
 }
 
 void codegen::visit_block(Block* blk)
@@ -47,7 +48,7 @@ void codegen::visit_assign(Assignment* asgn)
 {
 	visit(asgn->right);
 	printf("PUQ\n");
-	visit(asgn->left);
+	visit_left_expression(asgn->left);
 	printf("STD\n"); // TODO
 }
 
@@ -61,10 +62,8 @@ void codegen::visit_chained_expression(ChainedExpression* cexp)
 	visit(cexp->lhs);
 	for(auto rhs : cexp->rhs)
 	{
-		printf("LOD\n"); //TODO
 		printf("PUQ\n");
 		visit(rhs.second);
-		printf("LOD\n"); //TODO
 		switch(rhs.first)
 		{
 		case '+': printf("ADD\n"); break;
@@ -73,6 +72,17 @@ void codegen::visit_chained_expression(ChainedExpression* cexp)
 		case '/': printf("DIV\n"); break;
 		}
 	}
+}
+
+void codegen::visit_factor(Factor* factor)
+{
+	if VISIT(factor, IntegerLiteral*, visit_integer_literal)
+	else if (dynamic_cast<LeftExpression*>(factor))
+	{
+		visit_left_expression((LeftExpression*) factor);
+		printf("LOD\n"); // TODO
+	}
+	else { printf("unknown node: %s\n", typeid(*factor).name()); }
 }
 
 void codegen::visit_integer_literal(IntegerLiteral* literal)
@@ -88,10 +98,6 @@ void codegen::visit_call(CallStmt* call)
 	for(; rbeg != rend; rbeg++)
 	{
 		visit(*rbeg);
-		if (dynamic_cast<LeftExpression*>(*rbeg))
-		{
-			printf("LOD\n"); //TODO
-		}
 		printf("PUD\n"); //TODO
 	}
 	printf("CAL %s\n", call->func->sig->name);
@@ -101,11 +107,7 @@ void codegen::visit_return(ReturnStmt* ret)
 {
 	if (ret->expr)
 	{
-		visit(ret->expr);
-		if (dynamic_cast<LeftExpression*>(ret->expr))
-		{
-			printf("LOD\n"); //TODO
-		}
+		visit(ret->expr);	
 	}
 	printf("RET\n");
 }

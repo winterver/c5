@@ -12,6 +12,7 @@ public:
 	void visit(Statement* stmt);
 	void visit_block(Block* blk);
 	void visit_assign(Assignment* asgn);
+	void visit_factor(Factor* factor);
 	void visit_left_expression(LeftExpression* lexp);
 	void visit_chained_expression(ChainedExpression* cexp);
 	void visit_integer_literal(IntegerLiteral* literal);
