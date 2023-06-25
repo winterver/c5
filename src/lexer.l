@@ -3,7 +3,7 @@
 %option nounistd
 
 %{
-#include "parser.hpp"
+#include "y.tab.h"
 #ifdef _WIN32
 #  include <io.h>
 #  define isatty _isatty 
@@ -19,43 +19,49 @@ void yyerror(const char* s);
 "short"								{ return SHORT; }
 "int"								{ return INT; }
 "long"								{ return LONG; }
+"float"								{ return FLOAT; }
+"double"							{ return DOUBLE; }
 	/* keywords */
-"struct"							{ return STRUCT; }
+	/*"struct"							{ return STRUCT; }*/
 "return"							{ return RETURN; }
 
-[a-zA-Z_][a-zA-Z_0-9]*				{ return IDENTIFIER; }
-0|[1-9][0-9]*						{ return NUMBER; }
-0[1-7][0-7]*						{ return NUMBER; }
-0(x|X)[0-9a-fA-F]+					{ return NUMBER; }
-\"([^\\\"]|\\.)*\"  				{ return STRING; }
-(0|[1-9][0-9]*)\.([0-9]+|[0-9]*f)	{ return DECIMAL; }
+[a-zA-Z_][a-zA-Z_0-9]*				{
+										insert();
+										return ID; 
+									}
+
+0|[1-9][0-9]*						{ return NUM; }
+0[1-7][0-7]*						{ return NUM; }
+0(x|X)[0-9a-fA-F]+					{ return NUM; }
+\"([^\\\"]|\\.)*\"  				{ return STR; }
+(0|[1-9][0-9]*)\.([0-9]+|[0-9]*f)	{ return DEC; }
 
 	/* single-character operators & symbols */
 [~!%^&*()\-+={}\[\]|;:<>,./]		{ return *yytext; }
 
 	/* multi-character operators */
-"=="								{ return EQUAL; }
-"!="								{ return NOT_EQUAL; }
-">="								{ return GREATER_EQUAL; }
-"<="								{ return LESS_EQUAL; }
-"+="								{ return PLUS_ASSIGN; }
-"-="								{ return MINUS_ASSIGN; }
-"*="								{ return MUL_ASSIGN; }
-"/="								{ return DIV_ASSIGN; }
-"%="								{ return MOD_ASSIGN; }
-"&="								{ return AND_ASSIGN; }
-"|="								{ return OR_ASSIGN; }
-"^="								{ return NOT_ASSIGN; }
-"&&"								{ return LOGIC_AND; }
-"||"								{ return LOGIC_OR; }
-"<<"								{ return LSHIFT; }
-">>"								{ return RSHIFT; }
-"<<="								{ return LSHIFT_ASSIGN; }
-">>="								{ return RSHIFT_ASSIGN; }
-"++"								{ return INCREASE; }
-"--"								{ return DECREASE; }
-"->"								{ return ARROW; }
-"..."								{ return ELLIPSIS; }
+"=="								{ return EQ; }
+"!="								{ return NE; }
+">="								{ return GE; }
+"<="								{ return LE; }
+"+="								{ return PLUSASGN; }
+"-="								{ return MINUSASGN; }
+"*="								{ return MULASGN; }
+"/="								{ return DIVASGN; }
+"%="								{ return MODASGN; }
+"&="								{ return ANDASGN; }
+"|="								{ return ORASGN; }
+"^="								{ return XORASGN; }
+"&&"								{ return LOGAND; }
+"||"								{ return LOGOR; }
+"<<"								{ return SHL; }
+">>"								{ return SHR; }
+"<<="								{ return SHLASGN; }
+">>="								{ return SHRASGN; }
+"++"								{ return INCR; }
+"--"								{ return DECR; }
+"->"								{ return ARW; }
+	/* TODO: '...' */
 
 	/* comments & skips & error handle */
 "//".*								{ /* DO NOTHING */ }
@@ -69,6 +75,6 @@ void yyerror(const char* s);
 #include <stdio.h>
 void yyerror(const char* s)
 { 
-	puts(s); 
+	printf("(%d) %s", yylineno, s); 
 	exit(-1); 
 }
