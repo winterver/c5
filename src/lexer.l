@@ -26,7 +26,6 @@ void yyerror(const char* s);
 "return"							{ return RETURN; }
 
 [a-zA-Z_][a-zA-Z_0-9]*				{
-										insert();
 										return ID; 
 									}
 

@@ -92,10 +92,10 @@ or: xor
     | or '|' xor;
 
 logand: or
-logand: logand LOGAND or;
+	| logand LOGAND or;
 
 logor: logand
-    | logor LOGOR logand
+    | logor LOGOR logand;
 
 expr: logor
     | logor '?' expr ':' expr;
@@ -115,12 +115,6 @@ assign_op: '='
 
 var: type names ';';
 
-names: init_name
-    | names ',' init_name;
-
-init_name: name
-    | name ASGN init;
-
 type: VOID
     | CHAR
     | SHORT
@@ -129,6 +123,12 @@ type: VOID
     | FLOAT
     | DOUBLE
     | TYPE;
+
+names: init_name
+    | names ',' init_name;
+
+init_name: name
+    | name ASGN init;
 
 name: stars direct
     | direct;
