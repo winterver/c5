@@ -55,9 +55,9 @@ extern int yydebug;
     YYerror = 256,                 /* error  */
     YYUNDEF = 257,                 /* "invalid token"  */
     ID = 258,                      /* ID  */
-    NUM = 259,                     /* NUM  */
-    DEC = 260,                     /* DEC  */
-    STR = 261,                     /* STR  */
+    STR = 259,                     /* STR  */
+    NUM = 260,                     /* NUM  */
+    DEC = 261,                     /* DEC  */
     VOID = 262,                    /* VOID  */
     CHAR = 263,                    /* CHAR  */
     SHORT = 264,                   /* SHORT  */
@@ -104,7 +104,18 @@ extern int yydebug;
 
 /* Value type.  */
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
-typedef int YYSTYPE;
+union YYSTYPE
+{
+#line 8 "src\\parser.y"
+
+	char* sval;
+	unsigned long long ival;
+	long double fval;
+
+#line 116 "y.tab.h"
+
+};
+typedef union YYSTYPE YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define YYSTYPE_IS_DECLARED 1
 #endif

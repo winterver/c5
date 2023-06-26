@@ -5,8 +5,16 @@ int yylex(void);
 void yyerror(const char* s);
 %}
 
+%union {
+	char* sval;
+	unsigned long long ival;
+	long double fval;
+}
+
     // TOKENS
-%token ID NUM DEC STR
+%token<sval> ID STR
+%token<ival> NUM
+%token<fval> DEC
     // keywords
 %token VOID CHAR SHORT INT LONG FLOAT DOUBLE TYPE
 %token IF ELSE WHILE FOR CONTINUE BREAK RETURN

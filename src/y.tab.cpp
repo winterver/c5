@@ -117,9 +117,9 @@ extern int yydebug;
     YYerror = 256,                 /* error  */
     YYUNDEF = 257,                 /* "invalid token"  */
     ID = 258,                      /* ID  */
-    NUM = 259,                     /* NUM  */
-    DEC = 260,                     /* DEC  */
-    STR = 261,                     /* STR  */
+    STR = 259,                     /* STR  */
+    NUM = 260,                     /* NUM  */
+    DEC = 261,                     /* DEC  */
     VOID = 262,                    /* VOID  */
     CHAR = 263,                    /* CHAR  */
     SHORT = 264,                   /* SHORT  */
@@ -166,7 +166,18 @@ extern int yydebug;
 
 /* Value type.  */
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
-typedef int YYSTYPE;
+union YYSTYPE
+{
+#line 8 "src\\parser.y"
+
+	char* sval;
+	unsigned long long ival;
+	long double fval;
+
+#line 178 "y.tab.c"
+
+};
+typedef union YYSTYPE YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define YYSTYPE_IS_DECLARED 1
 #endif
@@ -187,9 +198,9 @@ enum yysymbol_kind_t
   YYSYMBOL_YYerror = 1,                    /* error  */
   YYSYMBOL_YYUNDEF = 2,                    /* "invalid token"  */
   YYSYMBOL_ID = 3,                         /* ID  */
-  YYSYMBOL_NUM = 4,                        /* NUM  */
-  YYSYMBOL_DEC = 5,                        /* DEC  */
-  YYSYMBOL_STR = 6,                        /* STR  */
+  YYSYMBOL_STR = 4,                        /* STR  */
+  YYSYMBOL_NUM = 5,                        /* NUM  */
+  YYSYMBOL_DEC = 6,                        /* DEC  */
   YYSYMBOL_VOID = 7,                       /* VOID  */
   YYSYMBOL_CHAR = 8,                       /* CHAR  */
   YYSYMBOL_SHORT = 9,                      /* SHORT  */
@@ -685,18 +696,18 @@ static const yytype_int8 yytranslate[] =
 /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
 static const yytype_uint8 yyrline[] =
 {
-       0,    26,    26,    27,    28,    29,    30,    32,    33,    34,
-      35,    36,    37,    38,    39,    41,    42,    43,    45,    46,
-      47,    48,    49,    50,    52,    53,    54,    55,    56,    57,
-      59,    60,    62,    63,    64,    65,    67,    68,    69,    71,
-      72,    73,    75,    76,    77,    78,    79,    81,    82,    83,
-      85,    86,    88,    89,    91,    92,    94,    95,    97,    98,
-     100,   101,   103,   104,   105,   106,   107,   108,   109,   110,
-     111,   112,   113,   114,   116,   118,   119,   120,   121,   122,
-     123,   124,   125,   127,   128,   130,   131,   133,   134,   136,
-     137,   139,   140,   141,   143,   144,   145,   146,   148,   149,
-     151,   152,   153,   154,   155,   157,   158,   160,   161,   162,
-     164,   165,   167,   168,   170,   171,   172,   174,   175,   176
+       0,    34,    34,    35,    36,    37,    38,    40,    41,    42,
+      43,    44,    45,    46,    47,    49,    50,    51,    53,    54,
+      55,    56,    57,    58,    60,    61,    62,    63,    64,    65,
+      67,    68,    70,    71,    72,    73,    75,    76,    77,    79,
+      80,    81,    83,    84,    85,    86,    87,    89,    90,    91,
+      93,    94,    96,    97,    99,   100,   102,   103,   105,   106,
+     108,   109,   111,   112,   113,   114,   115,   116,   117,   118,
+     119,   120,   121,   122,   124,   126,   127,   128,   129,   130,
+     131,   132,   133,   135,   136,   138,   139,   141,   142,   144,
+     145,   147,   148,   149,   151,   152,   153,   154,   156,   157,
+     159,   160,   161,   162,   163,   165,   166,   168,   169,   170,
+     172,   173,   175,   176,   178,   179,   180,   182,   183,   184
 };
 #endif
 
@@ -712,8 +723,8 @@ static const char *yysymbol_name (yysymbol_kind_t yysymbol) YY_ATTRIBUTE_UNUSED;
    First, the terminals, then, starting at YYNTOKENS, nonterminals.  */
 static const char *const yytname[] =
 {
-  "\"end of file\"", "error", "\"invalid token\"", "ID", "NUM", "DEC",
-  "STR", "VOID", "CHAR", "SHORT", "INT", "LONG", "FLOAT", "DOUBLE", "TYPE",
+  "\"end of file\"", "error", "\"invalid token\"", "ID", "STR", "NUM",
+  "DEC", "VOID", "CHAR", "SHORT", "INT", "LONG", "FLOAT", "DOUBLE", "TYPE",
   "IF", "ELSE", "WHILE", "FOR", "CONTINUE", "BREAK", "RETURN", "SIZEOF",
   "LOGAND", "LOGOR", "ASGN", "PLUSASGN", "MINUSASGN", "MULASGN", "DIVASGN",
   "MODASGN", "SHLASGN", "SHRASGN", "ANDASGN", "ORASGN", "XORASGN", "EQ",
@@ -778,7 +789,7 @@ static const yytype_int8 yydefact[] =
      116,     0,   114,     1,    75,    76,    77,    78,    79,    80,
       81,    82,   117,     0,     0,   118,   119,   115,    91,    90,
        0,    83,    85,     0,    88,   105,     0,   106,     0,     0,
-      74,     0,     0,    89,    87,     2,     3,     4,     5,     0,
+      74,     0,     0,    89,    87,     2,     5,     3,     4,     0,
        0,     0,     0,    24,    25,    26,    27,    28,    29,   112,
        7,    18,    30,     0,    32,    36,    39,    42,    47,    50,
       52,    54,    56,    58,    60,     0,     0,   109,     0,   111,
@@ -1439,7 +1450,7 @@ yyreduce:
   switch (yyn)
     {
 
-#line 1443 "y.tab.c"
+#line 1454 "y.tab.c"
 
       default: break;
     }

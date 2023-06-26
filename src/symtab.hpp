@@ -7,3 +7,9 @@ struct sym_t
 	int type;
 	int scope;
 };
+
+sym_t* insert(char* name);
+sym_t* lookup(char* name);
+
+void next_scope();
+void exit_scope();

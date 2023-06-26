@@ -1,19 +1,19 @@
 #include "symtab.hpp"
 #include <string.h>
 
+void yyerror(const char* s);
+
 #define SIZE 211
 #define CHARS 67
 
-void yyerror(const char* s);
-
-// polynomial rolling hash
+// polynomial rolling
 static int hash(char* name)
 {
 	unsigned long long val = 0;
 	unsigned long long pow = 1;
-	for (int i = 0; name[i] != '\0'; i++)
+	for (; *name; name++)
 	{
-		val = (val + name[i] * pow) % SIZE;
+		val = (val + *name * pow) % SIZE;
 		pow = pow * CHARS % SIZE;
 	}
 	return val;
@@ -26,7 +26,12 @@ sym_t* insert(char* name)
 {
 	int hashval = hash(name);
 	sym_t* l = table[hashval];
-	while ((l != nullptr) && strcmp(l->name, name)) l = l->next;
+
+	// string pool is installed in lexer.l
+	// all char* variables with the same string content
+	// hold the same address. so strings can be compared
+	// directly. no need to use strcmp().
+	while (l != nullptr && l->name == name) l = l->next;
 
 	if (l != nullptr && l->scope == scope)
 	{
@@ -34,7 +39,7 @@ sym_t* insert(char* name)
 	}
 
 	l = new sym_t;
-	l->name = strdup(name);
+	l->name = name;
 	l->scope = scope;
 	// more members to be initialized in parser
 	// ...
@@ -43,4 +48,32 @@ sym_t* insert(char* name)
 	table[hashval] = l;
 
 	return l;
+}
+
+sym_t* lookup(char* name)
+{
+	int hashval = hash(name);
+	sym_t* l = table[hashval];
+	while (l != nullptr && l->name == name) l = l->next;
+	return l;
+}
+
+void next_scope()
+{
+	scope++;
+}
+
+void exit_scope()
+{
+	for (int i = 0; i < SIZE; i++){
+		list_t* l = table[i];
+		/* Find the first item that is from another scope */
+		while(l != nullptr && l->scope == scope)
+		{
+			l = l->next;
+		}
+		/* Set the list equal to that item */
+		table[i] = l;
+	}
+	scope--;
 }

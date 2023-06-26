@@ -8,7 +8,9 @@
 #  include <io.h>
 #  define isatty _isatty 
 #endif
+
 void yyerror(const char* s);
+static char* pool(char* name);
 %}
 
 %%
@@ -26,7 +28,8 @@ void yyerror(const char* s);
 "return"							{ return RETURN; }
 
 [a-zA-Z_][a-zA-Z_0-9]*				{
-										return ID; 
+										yylval.sval = pool(yytext);
+										return ID;
 									}
 
 0|[1-9][0-9]*						{ return NUM; }
@@ -72,8 +75,28 @@ void yyerror(const char* s);
 %%
 
 #include <stdio.h>
+#include <string.h>
+#include <vector>
+
 void yyerror(const char* s)
 { 
 	printf("(%d) %s", yylineno, s); 
 	exit(-1); 
+}
+
+static char* pool(char* text)
+{
+	static std::vector<char*> strings;
+
+	for (int i = 0; i < strings.size(); i++)
+	{
+		if (!strcmp(text, strings[i]))
+		{
+			return strings[i];
+		}
+	}
+
+	char* dup = strdup(text);
+	strings.push_back(dup);
+	return dup;
 }
