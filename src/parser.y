@@ -39,16 +39,17 @@ prim: ID
 
 post: prim
     | post '[' expr ']'
-    | post '(' ')'
-    | post '(' args ')'
+	| call
     | post '.' ID
     | post ARW ID
     | post INCR
     | post DECR;
 
-args: arg ',' args
-    | arg;
-arg: expr;
+call: post '(' ')'
+	| post '(' args ')';
+
+args: expr ',' args
+    | expr;
 
 unary: post
     | INCR unary
@@ -165,9 +166,9 @@ param: type name;
 fwrd: sig ';';
 func: sig block;
 
-stmt: assign ';'
-    | expr ';'
-    | var;
+stmt: var
+	| assign ';'
+    | call ';';
 
 stmts: stmts stmt
     | stmt;
