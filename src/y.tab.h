@@ -54,50 +54,53 @@ extern int yydebug;
     YYEOF = 0,                     /* "end of file"  */
     YYerror = 256,                 /* error  */
     YYUNDEF = 257,                 /* "invalid token"  */
-    ID = 258,                      /* ID  */
-    STR = 259,                     /* STR  */
-    NUM = 260,                     /* NUM  */
-    DEC = 261,                     /* DEC  */
-    VOID = 262,                    /* VOID  */
-    CHAR = 263,                    /* CHAR  */
-    SHORT = 264,                   /* SHORT  */
-    INT = 265,                     /* INT  */
-    LONG = 266,                    /* LONG  */
-    FLOAT = 267,                   /* FLOAT  */
-    DOUBLE = 268,                  /* DOUBLE  */
-    TYPE = 269,                    /* TYPE  */
-    IF = 270,                      /* IF  */
-    ELSE = 271,                    /* ELSE  */
-    WHILE = 272,                   /* WHILE  */
-    FOR = 273,                     /* FOR  */
-    CONTINUE = 274,                /* CONTINUE  */
-    BREAK = 275,                   /* BREAK  */
-    RETURN = 276,                  /* RETURN  */
-    SIZEOF = 277,                  /* SIZEOF  */
-    LOGAND = 278,                  /* LOGAND  */
-    LOGOR = 279,                   /* LOGOR  */
-    ASGN = 280,                    /* ASGN  */
-    PLUSASGN = 281,                /* PLUSASGN  */
-    MINUSASGN = 282,               /* MINUSASGN  */
-    MULASGN = 283,                 /* MULASGN  */
-    DIVASGN = 284,                 /* DIVASGN  */
-    MODASGN = 285,                 /* MODASGN  */
-    SHLASGN = 286,                 /* SHLASGN  */
-    SHRASGN = 287,                 /* SHRASGN  */
-    ANDASGN = 288,                 /* ANDASGN  */
-    ORASGN = 289,                  /* ORASGN  */
-    XORASGN = 290,                 /* XORASGN  */
-    EQ = 291,                      /* EQ  */
-    NE = 292,                      /* NE  */
-    LE = 293,                      /* LE  */
-    GE = 294,                      /* GE  */
-    SHL = 295,                     /* SHL  */
-    SHR = 296,                     /* SHR  */
-    LOGNOT = 297,                  /* LOGNOT  */
-    NOT = 298,                     /* NOT  */
-    INCR = 299,                    /* INCR  */
-    DECR = 300,                    /* DECR  */
-    ARW = 301                      /* ARW  */
+    NUM = 258,                     /* NUM  */
+    DEC = 259,                     /* DEC  */
+    ID = 260,                      /* ID  */
+    STR = 261,                     /* STR  */
+    SIZEOF = 262,                  /* SIZEOF  */
+    PTR_OP = 263,                  /* PTR_OP  */
+    INC_OP = 264,                  /* INC_OP  */
+    DEC_OP = 265,                  /* DEC_OP  */
+    SHL_OP = 266,                  /* SHL_OP  */
+    SHR_OP = 267,                  /* SHR_OP  */
+    LE_OP = 268,                   /* LE_OP  */
+    GE_OP = 269,                   /* GE_OP  */
+    EQ_OP = 270,                   /* EQ_OP  */
+    NE_OP = 271,                   /* NE_OP  */
+    LOGAND = 272,                  /* LOGAND  */
+    LOGOR = 273,                   /* LOGOR  */
+    MULASGN = 274,                 /* MULASGN  */
+    DIVASGN = 275,                 /* DIVASGN  */
+    MODASGN = 276,                 /* MODASGN  */
+    ADDASGN = 277,                 /* ADDASGN  */
+    SUBASGN = 278,                 /* SUBASGN  */
+    SHLASGN = 279,                 /* SHLASGN  */
+    SHRASGN = 280,                 /* SHRASGN  */
+    ANDASGN = 281,                 /* ANDASGN  */
+    ELLIPSIS = 282,                /* ELLIPSIS  */
+    XORASGN = 283,                 /* XORASGN  */
+    ORASGN = 284,                  /* ORASGN  */
+    TYPE_NAME = 285,               /* TYPE_NAME  */
+    TYPEDEF = 286,                 /* TYPEDEF  */
+    STATIC = 287,                  /* STATIC  */
+    CONST = 288,                   /* CONST  */
+    VOID = 289,                    /* VOID  */
+    CHAR = 290,                    /* CHAR  */
+    SHORT = 291,                   /* SHORT  */
+    INT = 292,                     /* INT  */
+    LONG = 293,                    /* LONG  */
+    FLOAT = 294,                   /* FLOAT  */
+    DOUBLE = 295,                  /* DOUBLE  */
+    IF = 296,                      /* IF  */
+    ELSE = 297,                    /* ELSE  */
+    FOR = 298,                     /* FOR  */
+    WHILE = 299,                   /* WHILE  */
+    DO = 300,                      /* DO  */
+    CONTINUE = 301,                /* CONTINUE  */
+    BREAK = 302,                   /* BREAK  */
+    RETURN = 303,                  /* RETURN  */
+    GOTO = 304                     /* GOTO  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -106,13 +109,13 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 8 "src\\parser.y"
+#line 7 "src\\parser.y"
 
-	const char* sval;
-	unsigned long long ival;
+	long long ival;
 	long double fval;
+	const char* sval;
 
-#line 116 "y.tab.h"
+#line 119 "y.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

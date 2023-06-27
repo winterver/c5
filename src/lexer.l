@@ -9,9 +9,20 @@
 #  define isatty _isatty 
 #endif
 
+#include <string>
 void yyerror(const char* s);
+static int identifier_or_type();
+static void process_escape_sequence();
 static const char* pool(const char* name);
 %}
+
+D			[0-9]
+L			[a-zA-Z_]
+H			[a-fA-F0-9]
+E			([Ee][+-]?{D}+)
+P           ([Pp][+-]?{D}+)
+FS			(f|F|l|L)
+IS          ((u|U)|(u|U)?(l|L|ll|LL)|(l|L|ll|LL)(u|U))
 
 %%
 
@@ -23,31 +34,87 @@ static const char* pool(const char* name);
 "long"								{ return LONG; }
 "float"								{ return FLOAT; }
 "double"							{ return DOUBLE; }
+
+	/* specifiers */
+"typedef"							{ return TYPEDEF; }
+"static"							{ return STATIC; }
+"const"								{ return CONST; }
+
 	/* keywords */
-	/*"struct"							{ return STRUCT; }*/
+"if"								{ return IF; }
+"else"								{ return ELSE; }
+"for"								{ return FOR; }
+"while"								{ return WHILE; }
+"do"								{ return DO; }
+"continue"							{ return CONTINUE; }
+"break"								{ return BREAK; }
 "return"							{ return RETURN; }
+"goto"								{ return GOTO; }
 
-[a-zA-Z_][a-zA-Z_0-9]*				{
+	/* identifier & string literal */
+{L}({L}|{D})*						{
 										yylval.sval = pool(yytext);
-										return ID;
+										return identifier_or_type();
 									}
-
-0|[1-9][0-9]*						{ return NUM; }
-0[1-7][0-7]*						{ return NUM; }
-0(x|X)[0-9a-fA-F]+					{ return NUM; }
-\"([^\\\"]|\\.)*\"  				{ return STR; }
-(0|[1-9][0-9]*)\.([0-9]+|[0-9]*f)	{ return DEC; }
+\"([^\\\"]|\\.)*\"  				{
+										process_escape_sequence();
+										// +1 to skip the initial "
+										yylval.sval = pool(yytext+1);
+										return STR;
+									}
+	/* hexdecimal & octal & decimal & char */
+0[xX]{H}+{IS}?						{
+										yylval.ival = std::stoll(yytext, nullptr, 16);
+										return NUM;
+									}
+0[0-7]*[IS]?						{
+										yylval.ival = std::stoll(yytext, nullptr, 8);
+										return NUM;
+									}
+[1-9]{D}*{IS}?						{
+										yylval.ival = std::stoll(yytext);
+										return NUM;
+									}
+'(\\.|[^\\'\n])+'					{
+										yylval.ival = *yytext;
+										return NUM;
+									}
+	/* floating point & string literal */
+{D}+{E}{FS}?						{
+										yylval.fval = std::stold(yytext);
+										return DEC;
+									}
+{D}*"."{D}+{E}?{FS}?				{
+										yylval.fval = std::stold(yytext);
+										return DEC;
+									}
+{D}+"."{D}*{E}?{FS}?				{
+										yylval.fval = std::stold(yytext);
+										return DEC;
+									}
+0[xX]{H}+{P}{FS}?					{
+										yylval.fval = std::stold(yytext);
+										return DEC;
+									}
+0[xX]{H}*"."{H}+{P}?{FS}?     		{
+										yylval.fval = std::stold(yytext);
+										return DEC;
+									}
+0[xX]{H}+"."{H}*{P}?{FS}?     		{
+										yylval.fval = std::stold(yytext);
+										return DEC;
+									}
 
 	/* single-character operators & symbols */
 [~!%^&*()\-+={}\[\]|;:<>,./]		{ return *yytext; }
 
 	/* multi-character operators */
-"=="								{ return EQ; }
-"!="								{ return NE; }
-">="								{ return GE; }
-"<="								{ return LE; }
-"+="								{ return PLUSASGN; }
-"-="								{ return MINUSASGN; }
+"=="								{ return EQ_OP; }
+"!="								{ return NE_OP; }
+">="								{ return GE_OP; }
+"<="								{ return LE_OP; }
+"+="								{ return ADDASGN; }
+"-="								{ return SUBASGN; }
 "*="								{ return MULASGN; }
 "/="								{ return DIVASGN; }
 "%="								{ return MODASGN; }
@@ -56,18 +123,18 @@ static const char* pool(const char* name);
 "^="								{ return XORASGN; }
 "&&"								{ return LOGAND; }
 "||"								{ return LOGOR; }
-"<<"								{ return SHL; }
-">>"								{ return SHR; }
+"<<"								{ return SHL_OP; }
+">>"								{ return SHR_OP; }
 "<<="								{ return SHLASGN; }
 ">>="								{ return SHRASGN; }
-"++"								{ return INCR; }
-"--"								{ return DECR; }
-"->"								{ return ARW; }
-	/* TODO: '...' */
+"++"								{ return INC_OP; }
+"--"								{ return DEC_OP; }
+"->"								{ return PTR_OP; }
+"..."								{ return ELLIPSIS; }
 
 	/* comments & skips & error handle */
 "//".*								{ /* DO NOTHING */ }
-[ \r\t\n\v]							{ /* DO NOTHING */ }
+[ \r\n\t\v\f]						{ /* DO NOTHING */ }
 [/][*][^*]*[*]+([^*/][^*]*[*]+)*[/]	{ /* DO NOTHING */ }
 [/][*]								{ yyerror("unclosed comment"); }
 .									{ yyerror("unknown character"); }
@@ -83,6 +150,51 @@ void yyerror(const char* s)
 { 
 	printf("(%d) %s", yylineno, s); 
 	exit(-1); 
+}
+
+static int identifier_or_type()
+{
+	// need access to symtab
+	return ID;
+}
+
+static void process_escape_sequence()
+{
+	char* p1 = yytext;
+	char* p2 = yytext;
+	char c = 0;
+
+	while(*p2 != '\0')
+	{
+		if (*p2 == '\\')
+		{
+			p2++;
+			switch(*p2)
+			{
+			// https://en.wikipedia.org/wiki/Escape_sequences_in_C
+			case 'a': c = '\a'; break;
+			case 'b': c = '\b'; break;
+			case 'f': c = '\f'; break;
+			case 'n': c = '\n'; break;
+			case 'r': c = '\r'; break;
+			case 't': c = '\t'; break;
+			case 'v': c = '\v'; break;
+			case '\\': c = '\\'; break;
+			case '\'': c = '\''; break;
+			case '\"': c = '\"'; break;
+			case '\?': c = '\?'; break;
+			default: yyerror("unknown escape sequence");
+			}
+		}
+		else
+		{
+			c = *p2;
+		}
+		*p1++ = c;
+		p2++;
+	}
+	// change the trailing " to \0
+	*(p1 - 1) = '\0';
 }
 
 // string pool

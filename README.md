@@ -1,18 +1,6 @@
 # c5
-a c interpreter
+a c interpreter. parser.y & lexer.l are based on https://gist.github.com/codebrainz/2933703#file-c99-l-L6
 
 # TODO
-if else,
-while for,
-continue break,
-__syscall,
-c23 keyword: nullptr
-variadic arguments,
-type check,
-pointer deref,
-cast,
-function pointer,
-struct,
-member access,
-
+AST
 c preprocessor -> simpcpp
