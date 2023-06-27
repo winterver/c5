@@ -554,7 +554,7 @@ char *yytext;
 #endif
 
 void yyerror(const char* s);
-static char* pool(char* name);
+static const char* pool(const char* name);
 #line 558 "lex.yy.c"
 #line 559 "lex.yy.c"
 
@@ -2089,7 +2089,8 @@ void yyfree (void * ptr )
 
 #include <stdio.h>
 #include <string.h>
-#include <vector>
+#include <string>
+#include <unordered_set>
 
 void yyerror(const char* s)
 { 
@@ -2097,20 +2098,32 @@ void yyerror(const char* s)
 	exit(-1); 
 }
 
-static char* pool(char* text)
+// string pool
+static const char* pool(const char* text)
 {
-	static std::vector<char*> strings;
-
-	for (int i = 0; i < strings.size(); i++)
-	{
-		if (!strcmp(text, strings[i]))
-		{
-			return strings[i];
+	struct string_compare { 
+		bool operator()(
+			const char* s1, 
+			const char* s2
+		) const {
+			return !strcmp(s1, s2);
 		}
+	};
+
+	static std::unordered_set<
+		const char*,
+		std::hash<std::string>,
+		string_compare
+	> strings;
+	
+	auto it = strings.find(text);
+	if (it != strings.end())
+	{
+		return *it;
 	}
 
 	char* dup = strdup(text);
-	strings.push_back(dup);
+	strings.insert(dup);
 	return dup;
 }
 

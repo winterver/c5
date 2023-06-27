@@ -6,7 +6,7 @@ void yyerror(const char* s);
 %}
 
 %union {
-	char* sval;
+	const char* sval;
 	unsigned long long ival;
 	long double fval;
 }
@@ -161,7 +161,8 @@ sig: type name '(' ')'
     | type name '(' params ')';
 params: params ',' param
     | param;
-param: type name;
+param: type 
+	| type name;
 
 fwrd: sig ';';
 func: sig block;

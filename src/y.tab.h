@@ -108,7 +108,7 @@ union YYSTYPE
 {
 #line 8 "src\\parser.y"
 
-	char* sval;
+	const char* sval;
 	unsigned long long ival;
 	long double fval;
 
