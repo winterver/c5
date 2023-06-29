@@ -8,4 +8,4 @@ add_executable(c5
 	src/y.tab.cpp
 )
 
-target_compile_options(c5 PRIVATE /wd4005)
+#target_compile_options(c5 PRIVATE /wd4005)

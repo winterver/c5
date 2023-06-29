@@ -109,7 +109,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 13 "src\\parser.y"
+#line 14 "src\\parser.y"
 
 	long long ival;
 	long double fval;
@@ -121,7 +121,14 @@ union YYSTYPE
 		const char* name; // valid only if type == TYPE_TYPDEF
 	} decl_specif;
 
-#line 125 "y.tab.h"
+	initial_t initial;
+	init_decl_t init_decl;
+	init_decl_t* init_decl_list;
+
+	param_t param;
+	param_t* param_list;
+
+#line 132 "y.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

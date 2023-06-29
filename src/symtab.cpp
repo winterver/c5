@@ -1,5 +1,6 @@
 #include "symtab.hpp"
 #include <string.h>
+#include <stdio.h>
 
 void yyerror(const char* s);
 
@@ -65,13 +66,25 @@ sym_t* lookup_type(const char* name)
 
 	while (l != nullptr)
 	{
-		if (l->category == CATEGORY_TYPEDEF && l->name == name)
+		if (l->specif & SPECIF_TYPEDEF && l->name == name)
 		{
 			return l;
 		}
 		l = l->next;
 	}
 	return nullptr;
+}
+
+void print_table()
+{
+	for (int i = 0; i < SIZE; i++){
+		sym_t* l = table[i];
+		while(l != nullptr && l->scope == scope)
+		{
+			printf("%s\n", l->name);
+			l = l->next;
+		}
+	}
 }
 
 void next_scope()

@@ -2,6 +2,7 @@
 %{
 #include <string.h>
 #include "symtab.hpp"
+#include <stdio.h>
 int yylex(void);
 void yyerror(const char* s);
 #define ZERO(s) memset(&s, 0, sizeof(s))
@@ -20,6 +21,13 @@ bool declare;
 		int specif; 
 		const char* name; // valid only if type == TYPE_TYPDEF
 	} decl_specif;
+
+	initial_t initial;
+	init_decl_t init_decl;
+	init_decl_t* init_decl_list;
+
+	param_t param;
+	param_t* param_list;
 }
 
 %token<ival> NUM
@@ -41,6 +49,15 @@ bool declare;
 %type<decl_specif> storage_class_specifier
 %type<decl_specif> type_specifier
 %type<decl_specif> type_qualifier
+
+%type<ival> pointer
+%type<init_decl> direct_declarator
+%type<init_decl> declarator
+%type<init_decl> init_declarator
+%type<init_decl_list> init_declarator_list
+
+%type<param> parameter_declaration
+%type<param_list> parameter_list
 
 %start translation_unit
 
@@ -184,54 +201,151 @@ declaration
 	: declaration_specifiers init_declarator_list ';'
 		{ 
 			declare = false;
+
+			for(auto idl = $2; idl != nullptr; idl = idl->next)
+			{
+				if ($1.type == 0)
+				{
+					yyerror("no type specifier");
+				}
+
+				// if it is a typedef declaration
+				if ($1.specif & SPECIF_TYPEDEF)
+				{
+					if (idl->category == CATEGORY_VAR 
+						|| idl->category == CATEGORY_ARRAY)
+					{
+						sym_t* nt = insert(idl->name);
+						nt->category = idl->category;
+						nt->type = $1.type;
+						nt->specif = $1.specif;
+						nt->depth = idl->depth;
+					}
+					else
+					{
+						yyerror("unsupported typedef declaration");
+					}
+				}
+				else { 
+					// else it is a common declaration
+					sym_t* var = insert(idl->name);
+
+					// if $1.type is a type defined with typedef
+					if ($1.type == TYPE_TYPEDEF)
+					{
+						sym_t* t = lookup_type($1.name);
+						if (t == nullptr)
+						{
+							yyerror("no such type");
+						}
+						if ($1.specif & t->specif)
+						{
+							yyerror("duplicate specifier");
+						}
+
+						var->type = t->type;
+						// clear SPECIF_TYPEDEF flag and then combine
+						var->specif |= t->specif & ~SPECIF_TYPEDEF;
+						var->depth = t->depth + idl->depth;
+	
+						if (t->category == CATEGORY_ARRAY
+							&& idl->category == CATEGORY_FUNC)
+						{
+							yyerror("returning array is not supported");
+						}
+
+						// when idl->category == CATEGORY_FUNC
+						// t->category can only be CATEGORY_VAR
+						var->category ==
+							idl->category > t->category
+							? idl->category : t->category;
+
+						if (var->category == CATEGORY_ARRAY)
+						{
+							// combine t->dimens and idl->dimens
+						}	
+					}
+					// else it is a common type
+					else
+					{
+						var->type = $1.type;
+						var->specif = $1.specif;
+						var->category = idl->category;
+						var->depth = idl->depth;
+						// var->dimens = idl->dimens;
+					}
+					var->params = idl->params;
+					// parse typedef in params
+					var->variadic = idl->variadic;
+				}
+			}
+
+			//print_table();
 		}
 	;
 
 declaration_specifiers
 	: storage_class_specifier { $$ = $1; declare = true; }
-	| storage_class_specifier declaration_specifiers
+	| declaration_specifiers storage_class_specifier 
 		{
 			if ($1.specif & $2.specif)
 			{
 				yyerror("duplicate specifier");
 			}
-			$2.specif |= $1.specif;
-			$$ = $2;
+			$1.specif |= $2.specif;
+			$$ = $1;
 			declare = true;
 		}
 	| type_specifier { $$ = $1; declare = true; }
-	| type_specifier declaration_specifiers
+	| declaration_specifiers type_specifier
 		{
-			if ($2.type != 0)
+			if ($1.type != 0)
 			{
-				yyerror("duplicate specifier");
+				yyerror("multiple type specifier");
 			}
-			$2.type = $1.type;
-			$2.name = $1.name;
-			$$ = $2;
+			$1.type = $2.type;
+			$1.name = $2.name;
+			$$ = $1;
 			declare = true;
 		}
 	| type_qualifier { $$ = $1; declare = true; }
-	| type_qualifier declaration_specifiers
+	| declaration_specifiers type_qualifier
 		{
 			if ($1.specif & $2.specif)
 			{
-				yyerror("duplicate specifier");
+				yyerror("duplicate qualifier");
 			}
-			$2.specif |= $1.specif;
-			$$ = $2;
+			$1.specif |= $2.specif;
+			$$ = $1;
 			declare = true;
 		}
 	;
 
 init_declarator_list
 	: init_declarator
+		{
+			$$ = new init_decl_t;
+			*$$ = $1;
+		}
 	| init_declarator_list ',' init_declarator
+		{
+			auto idl = new init_decl_t;
+			*idl = $3;
+
+			auto p = $1;
+			for(; p->next != nullptr; p = p->next);
+			p->next = idl;
+
+			$$ = $1;
+		}
 	;
 
 init_declarator
-	: declarator
+	: declarator { $$ = $1; }
 	| declarator '=' initializer
+		{
+			yyerror("initializer is currently not supported");
+		}
 	;
 
 storage_class_specifier
@@ -259,32 +373,100 @@ specifier_qualifier_list
 	| type_qualifier specifier_qualifier_list;
 
 declarator
-	: pointer direct_declarator
-	| direct_declarator
+	: pointer direct_declarator { $2.depth = $1; $$ = $2; }
+	| direct_declarator { $$ = $1; }
 	;
 
 direct_declarator
-	: ID
-	| direct_declarator '[' ']'
-	| direct_declarator '[' assignment_expression ']'
+	: ID { ZERO($$); $$.name = $1; $$.category = CATEGORY_VAR; }
+	| direct_declarator '[' ']' { yyerror("array is currently not supported"); }
+	| direct_declarator '[' assignment_expression ']' { yyerror("array is currently not supported"); }
 	| direct_declarator '(' ')'
+		{
+			if ($1.category != CATEGORY_VAR)
+			{
+				yyerror("illegal function declaration");
+			}
+			$1.category = CATEGORY_FUNC;
+			$$ = $1;
+		}
 	| direct_declarator '(' parameter_list ')'
+		{
+			if ($1.category != CATEGORY_VAR)
+			{
+				yyerror("illegal function declaration");
+			}
+			$1.category = CATEGORY_FUNC;
+			$1.params = $3;
+			$$ = $1;
+		}
 	| direct_declarator '(' parameter_list ',' ELLIPSIS ')'
+		{
+			if ($1.category != CATEGORY_VAR)
+			{
+				yyerror("illegal function declaration");
+			}
+			$1.category = CATEGORY_FUNC;
+			$1.params = $3;
+			$1.variadic = true;
+			$$ = $1;
+		}
 	;
 
 pointer
-	: '*'
-	| '*' pointer
+	: '*' { $$ = 1; }
+	| '*' pointer { $$ = $2 + 1; }
 	;
 
 parameter_list
 	: parameter_declaration
+		{
+			$$ = new param_t;
+			*$$ = $1;
+
+			//$$->next = nullptr;
+			// no need to set this, as it was already set in 
+			// parameter_declaration using ZERO()
+		}
 	| parameter_list ',' parameter_declaration
+		{
+			auto idl = new param_t;
+			*idl = $3;
+
+			auto p = $1;
+			for(; p->next != nullptr; p = p->next);
+			p->next = idl;
+
+			$$ = $1;
+		}
 	;
 
 parameter_declaration
 	: declaration_specifiers declarator
+		{ 
+			if ($2.category != CATEGORY_VAR)
+			{
+				yyerror("only value-type and pointers are supported in parameter list");
+			}
+			ZERO($$);
+			$$.type = $1.type; 
+			$$.specif = $1.specif;
+			$$.depth = $2.depth;
+			$$.name = $2.name;
+		}
+	| declaration_specifiers pointer
+		{ 
+			ZERO($$);
+			$$.type = $1.type; 
+			$$.specif = $1.specif;
+			$$.depth = $2;
+		}
 	| declaration_specifiers
+		{ 
+			ZERO($$);
+			$$.type = $1.type; 
+			$$.specif = $1.specif;
+		}
 	;
 
 type_name

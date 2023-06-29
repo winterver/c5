@@ -3,6 +3,7 @@
 %option nounistd
 
 %{
+#include "symtab.hpp"
 #include "y.tab.h"
 #ifdef _WIN32
 #  include <io.h>
