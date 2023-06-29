@@ -20,9 +20,9 @@ D			[0-9]
 L			[a-zA-Z_]
 H			[a-fA-F0-9]
 E			([Ee][+-]?{D}+)
-P           ([Pp][+-]?{D}+)
+P			([Pp][+-]?{D}+)
 FS			(f|F|l|L)
-IS          ((u|U)|(u|U)?(l|L|ll|LL)|(l|L|ll|LL)(u|U))
+IS			((u|U)|(u|U)?(l|L|ll|LL)|(l|L|ll|LL)(u|U))
 
 %%
 
@@ -76,10 +76,12 @@ IS          ((u|U)|(u|U)?(l|L|ll|LL)|(l|L|ll|LL)(u|U))
 										return NUM;
 									}
 '(\\.|[^\\'\n])+'					{
-										yylval.ival = *yytext;
+										process_escape_sequence();
+										// +1 to skip the initial '
+										yylval.ival = *(yytext+1);
 										return NUM;
 									}
-	/* floating point & string literal */
+	/* floating point */
 {D}+{E}{FS}?						{
 										yylval.fval = std::stold(yytext);
 										return DEC;
@@ -145,6 +147,8 @@ IS          ((u|U)|(u|U)?(l|L|ll|LL)|(l|L|ll|LL)(u|U))
 #include <string.h>
 #include <string>
 #include <unordered_set>
+#include "symtab.hpp"
+extern bool declare;
 
 void yyerror(const char* s)
 { 
@@ -154,8 +158,11 @@ void yyerror(const char* s)
 
 static int identifier_or_type()
 {
-	// need access to symtab
-	return ID;
+	if (declare)
+	{
+		return ID;	
+	}
+	return lookup_type(yylval.sval) ? TYPE : ID;
 }
 
 static void process_escape_sequence()
@@ -193,7 +200,7 @@ static void process_escape_sequence()
 		*p1++ = c;
 		p2++;
 	}
-	// change the trailing " to \0
+	// change the trailing " or ' to \0
 	*(p1 - 1) = '\0';
 }
 

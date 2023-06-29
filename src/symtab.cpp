@@ -7,7 +7,7 @@ void yyerror(const char* s);
 #define CHARS 67
 
 // polynomial rolling
-static int hash(char* name)
+static int hash(const char* name)
 {
 	unsigned long long val = 0;
 	unsigned long long pow = 1;
@@ -22,7 +22,7 @@ static int hash(char* name)
 static sym_t* table[SIZE] = {0};
 static int scope = 0;
 
-sym_t* insert(char* name)
+sym_t* insert(const char* name)
 {
 	int hashval = hash(name);
 	sym_t* l = table[hashval];
@@ -58,6 +58,22 @@ sym_t* lookup(char* name)
 	return l;
 }
 
+sym_t* lookup_type(const char* name)
+{
+	int hashval = hash(name);
+	sym_t*l = table[hashval];
+
+	while (l != nullptr)
+	{
+		if (l->category == CATEGORY_DEF && l->name == name)
+		{
+			return l;
+		}
+		l = l->next;
+	}
+	return nullptr;
+}
+
 void next_scope()
 {
 	scope++;
@@ -66,7 +82,7 @@ void next_scope()
 void exit_scope()
 {
 	for (int i = 0; i < SIZE; i++){
-		list_t* l = table[i];
+		sym_t* l = table[i];
 		/* Find the first item that is from another scope */
 		while(l != nullptr && l->scope == scope)
 		{

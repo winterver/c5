@@ -3,6 +3,7 @@ project(c5)
 
 add_executable(c5 
 	src/main.cpp
+	src/symtab.cpp
 	src/lex.yy.cpp
 	src/y.tab.cpp
 )

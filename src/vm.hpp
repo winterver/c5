@@ -15,10 +15,6 @@ enum op_t : u8 {
 	EXIT,
 	PRTF, // printf("%d", acc32);
 	
-	// pseudo-instructions
-	LABL, // marks a label
-	// DB DW DD DQ DS(define string)
-	
 	// IM: IMmediate, LO: LOad, ST: STore
 	// PU: PUsh, PO: POp.
 	// B: Byte, W: Word, D: Dword, Q: Qword
@@ -50,9 +46,9 @@ enum op_t : u8 {
 	CAL, // call 
 	RET, 
 
-	ADS, // add to stack
-	LEA,	
-	GLO,
+	ADS, // sp += operand
+	LEA, // acc = sp + operand
+	GLO, // acc = data + operand
 
 	ADD, 
 	SUB, 

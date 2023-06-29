@@ -1,7 +1,11 @@
 
 %{
+#include "symtab.hpp"
 int yylex(void);
 void yyerror(const char* s);
+
+// states of the parser
+bool declare;
 %}
 
 %union {
@@ -18,10 +22,11 @@ void yyerror(const char* s);
 %token PTR_OP INC_OP DEC_OP SHL_OP SHR_OP LE_OP GE_OP EQ_OP NE_OP
 %token LOGAND LOGOR MULASGN DIVASGN MODASGN ADDASGN
 %token SUBASGN SHLASGN SHRASGN ANDASGN ELLIPSIS
-%token XORASGN ORASGN TYPE_NAME
+%token XORASGN ORASGN
 
 %token TYPEDEF STATIC CONST
 %token VOID CHAR SHORT INT LONG FLOAT DOUBLE
+%token<sval> TYPE // for types defined with typedef
 %token IF ELSE FOR WHILE DO CONTINUE BREAK RETURN GOTO
 
 %start translation_unit
@@ -163,8 +168,7 @@ expression
 	;
 
 declaration
-	: declaration_specifiers ';'
-	| declaration_specifiers init_declarator_list ';'
+	: declaration_specifiers init_declarator_list ';'
 	;
 
 declaration_specifiers
@@ -199,7 +203,7 @@ type_specifier
 	| LONG
 	| FLOAT
 	| DOUBLE
-	| TYPE_NAME
+	| TYPE
 	;
 
 type_qualifier
@@ -243,6 +247,7 @@ parameter_declaration
 
 type_name
 	: specifier_qualifier_list
+	| specifier_qualifier_list pointer
 	;
 
 initializer

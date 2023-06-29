@@ -81,17 +81,17 @@ extern int yydebug;
     ELLIPSIS = 282,                /* ELLIPSIS  */
     XORASGN = 283,                 /* XORASGN  */
     ORASGN = 284,                  /* ORASGN  */
-    TYPE_NAME = 285,               /* TYPE_NAME  */
-    TYPEDEF = 286,                 /* TYPEDEF  */
-    STATIC = 287,                  /* STATIC  */
-    CONST = 288,                   /* CONST  */
-    VOID = 289,                    /* VOID  */
-    CHAR = 290,                    /* CHAR  */
-    SHORT = 291,                   /* SHORT  */
-    INT = 292,                     /* INT  */
-    LONG = 293,                    /* LONG  */
-    FLOAT = 294,                   /* FLOAT  */
-    DOUBLE = 295,                  /* DOUBLE  */
+    TYPEDEF = 285,                 /* TYPEDEF  */
+    STATIC = 286,                  /* STATIC  */
+    CONST = 287,                   /* CONST  */
+    VOID = 288,                    /* VOID  */
+    CHAR = 289,                    /* CHAR  */
+    SHORT = 290,                   /* SHORT  */
+    INT = 291,                     /* INT  */
+    LONG = 292,                    /* LONG  */
+    FLOAT = 293,                   /* FLOAT  */
+    DOUBLE = 294,                  /* DOUBLE  */
+    TYPE = 295,                    /* TYPE  */
     IF = 296,                      /* IF  */
     ELSE = 297,                    /* ELSE  */
     FOR = 298,                     /* FOR  */
@@ -109,7 +109,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 7 "src\\parser.y"
+#line 11 "src\\parser.y"
 
 	long long ival;
 	long double fval;
