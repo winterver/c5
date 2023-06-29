@@ -65,7 +65,7 @@ sym_t* lookup_type(const char* name)
 
 	while (l != nullptr)
 	{
-		if (l->category == CATEGORY_DEF && l->name == name)
+		if (l->category == CATEGORY_TYPEDEF && l->name == name)
 		{
 			return l;
 		}

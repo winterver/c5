@@ -1,8 +1,10 @@
 
 %{
+#include <string.h>
 #include "symtab.hpp"
 int yylex(void);
 void yyerror(const char* s);
+#define ZERO(s) memset(&s, 0, sizeof(s))
 
 // states of the parser
 bool declare;
@@ -12,6 +14,12 @@ bool declare;
 	long long ival;
 	long double fval;
 	const char* sval;
+
+	struct {
+		int type; 
+		int specif; 
+		const char* name; // valid only if type == TYPE_TYPDEF
+	} decl_specif;
 }
 
 %token<ival> NUM
@@ -28,6 +36,11 @@ bool declare;
 %token VOID CHAR SHORT INT LONG FLOAT DOUBLE
 %token<sval> TYPE // for types defined with typedef
 %token IF ELSE FOR WHILE DO CONTINUE BREAK RETURN GOTO
+
+%type<decl_specif> declaration_specifiers
+%type<decl_specif> storage_class_specifier
+%type<decl_specif> type_specifier
+%type<decl_specif> type_qualifier
 
 %start translation_unit
 
@@ -169,15 +182,46 @@ expression
 
 declaration
 	: declaration_specifiers init_declarator_list ';'
+		{ 
+			declare = false;
+		}
 	;
 
 declaration_specifiers
-	: storage_class_specifier
+	: storage_class_specifier { $$ = $1; declare = true; }
 	| storage_class_specifier declaration_specifiers
-	| type_specifier
+		{
+			if ($1.specif & $2.specif)
+			{
+				yyerror("duplicate specifier");
+			}
+			$2.specif |= $1.specif;
+			$$ = $2;
+			declare = true;
+		}
+	| type_specifier { $$ = $1; declare = true; }
 	| type_specifier declaration_specifiers
-	| type_qualifier
+		{
+			if ($2.type != 0)
+			{
+				yyerror("duplicate specifier");
+			}
+			$2.type = $1.type;
+			$2.name = $1.name;
+			$$ = $2;
+			declare = true;
+		}
+	| type_qualifier { $$ = $1; declare = true; }
 	| type_qualifier declaration_specifiers
+		{
+			if ($1.specif & $2.specif)
+			{
+				yyerror("duplicate specifier");
+			}
+			$2.specif |= $1.specif;
+			$$ = $2;
+			declare = true;
+		}
 	;
 
 init_declarator_list
@@ -191,23 +235,21 @@ init_declarator
 	;
 
 storage_class_specifier
-	: TYPEDEF
-	| STATIC
+	: TYPEDEF { ZERO($$); $$.specif = SPECIF_TYPEDEF; }
+	| STATIC { ZERO($$); $$.specif = SPECIF_STATIC; }
 	;
 
 type_specifier
-	: VOID
-	| CHAR
-	| SHORT
-	| INT
-	| LONG
-	| FLOAT
-	| DOUBLE
-	| TYPE
+	: VOID { ZERO($$); $$.type = TYPE_VOID; }
+	| CHAR { ZERO($$); $$.type = TYPE_CHAR; }
+	| SHORT { ZERO($$); $$.type = TYPE_SHORT; }
+	| INT { ZERO($$); $$.type = TYPE_INT; }
+	| LONG { ZERO($$); $$.type = TYPE_LONG; }
+	| TYPE { ZERO($$); $$.type = TYPE_TYPEDEF; $$.name = $1; }
 	;
 
 type_qualifier
-	: CONST
+	: CONST { ZERO($$); $$.specif = SPECIF_CONST; }
 	;
 
 specifier_qualifier_list
