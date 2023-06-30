@@ -4,7 +4,9 @@
 
 %{
 #include "symtab.hpp"
+#include <vector>
 #include "y.tab.h"
+
 #ifdef _WIN32
 #  include <io.h>
 #  define isatty _isatty 

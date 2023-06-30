@@ -1,14 +1,26 @@
 
 %{
 #include <string.h>
-#include "symtab.hpp"
 #include <stdio.h>
 int yylex(void);
 void yyerror(const char* s);
+
+#include "symtab.hpp"
 #define ZERO(s) memset(&s, 0, sizeof(s))
+#include <vector>
 
 // states of the parser
 bool declare;
+
+// helper function
+template<class T>
+T* extract(std::vector<T>* vec)
+{
+	auto res = new T[vec->size()];
+	std::copy(vec->begin(), vec->end(), res);
+	delete vec; // remember to retrive size before calling extract()
+	return res;
+}
 %}
 
 %union {
@@ -22,12 +34,11 @@ bool declare;
 		const char* name; // valid only if type == TYPE_TYPDEF
 	} decl_specif;
 
-	initial_t initial;
 	init_decl_t init_decl;
-	init_decl_t* init_decl_list;
+	std::vector<init_decl_t>* init_decl_list;
 
 	param_t param;
-	param_t* param_list;
+	std::vector<param_t>* param_list;
 }
 
 %token<ival> NUM
@@ -202,7 +213,7 @@ declaration
 		{ 
 			declare = false;
 
-			for(auto idl = $2; idl != nullptr; idl = idl->next)
+			for(auto idl = $2->begin(); idl != $2->end(); idl++)
 			{
 				if ($1.type == 0)
 				{
@@ -247,40 +258,42 @@ declaration
 						// clear SPECIF_TYPEDEF flag and then combine
 						var->specif |= t->specif & ~SPECIF_TYPEDEF;
 						var->depth = t->depth + idl->depth;
-	
-						if (t->category == CATEGORY_ARRAY
-							&& idl->category == CATEGORY_FUNC)
+
+						// if it's function or array, more steps are
+						// required.
+						if (idl->category == CATEGORY_FUNC)
 						{
-							yyerror("returning array is not supported");
+							if (t->category == CATEGORY_ARRAY)
+							{
+								yyerror("returning array is not supported");
+							}
+							var->category = CATEGORY_FUNC;
+							var->nparams = idl->nparams;
+							var->params = idl->params;
+							var->variadic = idl->variadic;
 						}
-
-						// when idl->category == CATEGORY_FUNC
-						// t->category can only be CATEGORY_VAR
-						var->category ==
-							idl->category > t->category
-							? idl->category : t->category;
-
-						if (var->category == CATEGORY_ARRAY)
+						else if (idl->category == CATEGORY_ARRAY
+								|| t->category == CATEGORY_ARRAY)
 						{
-							// combine t->dimens and idl->dimens
-						}	
+							var->category = CATEGORY_ARRAY;
+							// TODO: combine their dimensions
+						}			
 					}
 					// else it is a common type
 					else
 					{
 						var->type = $1.type;
 						var->specif = $1.specif;
-						var->category = idl->category;
 						var->depth = idl->depth;
-						// var->dimens = idl->dimens;
-					}
-					var->params = idl->params;
-					// parse typedef in params
-					var->variadic = idl->variadic;
-				}
-			}
 
-			//print_table();
+						var->category = idl->category;
+						var->nparams = idl->nparams;
+						var->params = idl->params;
+						var->variadic = idl->variadic;
+					}
+				}
+			} // end foreach($2)
+			delete $2;
 		}
 	;
 
@@ -324,18 +337,13 @@ declaration_specifiers
 init_declarator_list
 	: init_declarator
 		{
-			$$ = new init_decl_t;
-			*$$ = $1;
+			$$ = new std::vector<init_decl_t>;
+			$$->push_back($1);
 		}
 	| init_declarator_list ',' init_declarator
 		{
-			auto idl = new init_decl_t;
-			*idl = $3;
-
-			auto p = $1;
-			for(; p->next != nullptr; p = p->next);
-			p->next = idl;
-
+			// TODO: check duplicate names
+			$1->push_back($3);
 			$$ = $1;
 		}
 	;
@@ -397,7 +405,8 @@ direct_declarator
 				yyerror("illegal function declaration");
 			}
 			$1.category = CATEGORY_FUNC;
-			$1.params = $3;
+			$1.nparams = $3->size();
+			$1.params = extract($3);
 			$$ = $1;
 		}
 	| direct_declarator '(' parameter_list ',' ELLIPSIS ')'
@@ -407,7 +416,8 @@ direct_declarator
 				yyerror("illegal function declaration");
 			}
 			$1.category = CATEGORY_FUNC;
-			$1.params = $3;
+			$1.nparams = $3->size();
+			$1.params = extract($3);
 			$1.variadic = true;
 			$$ = $1;
 		}
@@ -421,22 +431,13 @@ pointer
 parameter_list
 	: parameter_declaration
 		{
-			$$ = new param_t;
-			*$$ = $1;
-
-			//$$->next = nullptr;
-			// no need to set this, as it was already set in 
-			// parameter_declaration using ZERO()
+			$$ = new std::vector<param_t>;
+			$$->push_back($1);
 		}
 	| parameter_list ',' parameter_declaration
 		{
-			auto idl = new param_t;
-			*idl = $3;
-
-			auto p = $1;
-			for(; p->next != nullptr; p = p->next);
-			p->next = idl;
-
+			// TODO: check duplicate names
+			$1->push_back($3);
 			$$ = $1;
 		}
 	;
@@ -453,6 +454,7 @@ parameter_declaration
 			$$.specif = $1.specif;
 			$$.depth = $2.depth;
 			$$.name = $2.name;
+			// TODO expand TYPE_TYPEDEF
 		}
 	| declaration_specifiers pointer
 		{ 

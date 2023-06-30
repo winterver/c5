@@ -32,7 +32,7 @@ sym_t* insert(const char* name)
 	// all char* variables with the same string content
 	// hold the same address. so strings can be compared
 	// directly. no need to use strcmp().
-	while (l != nullptr && l->name == name) l = l->next;
+	while (l != nullptr && l->name != name) l = l->next;
 
 	if (l != nullptr && l->scope == scope)
 	{
@@ -73,18 +73,6 @@ sym_t* lookup_type(const char* name)
 		l = l->next;
 	}
 	return nullptr;
-}
-
-void print_table()
-{
-	for (int i = 0; i < SIZE; i++){
-		sym_t* l = table[i];
-		while(l != nullptr && l->scope == scope)
-		{
-			printf("%s\n", l->name);
-			l = l->next;
-		}
-	}
 }
 
 void next_scope()

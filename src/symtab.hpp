@@ -18,7 +18,7 @@
 
 struct param_t
 {
-	param_t* next;
+	int category;
 	const char* name;
 	int type;
 	int specif; // specifiers & qualifiers.
@@ -32,12 +32,14 @@ struct initial_t
 };
 
 struct init_decl_t {
-	init_decl_t* next;
 	int category;
 	const char* name;
 	int depth;
+
+	int nparams;
 	param_t* params;
 	bool variadic;
+
 	initial_t* init;
 };
 
@@ -52,6 +54,7 @@ struct sym_t
 	int specif; // specifiers & qualifiers.
 	int depth; // depth of the pointer. 0 indicates non-pointer
 	
+	int nparams;
 	param_t* params;
 	bool variadic;
 };
@@ -59,7 +62,6 @@ struct sym_t
 sym_t* insert(const char* name);
 sym_t* lookup(const char* name);
 sym_t* lookup_type(const char* name);
-void print_table();
 
 void next_scope();
 void exit_scope();

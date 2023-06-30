@@ -70,16 +70,28 @@
 #line 2 "src\\parser.y"
 
 #include <string.h>
-#include "symtab.hpp"
 #include <stdio.h>
 int yylex(void);
 void yyerror(const char* s);
+
+#include "symtab.hpp"
 #define ZERO(s) memset(&s, 0, sizeof(s))
+#include <vector>
 
 // states of the parser
 bool declare;
 
-#line 83 "y.tab.c"
+// helper function
+template<class T>
+T* extract(std::vector<T>* vec)
+{
+	auto res = new T[vec->size()];
+	std::copy(vec->begin(), vec->end(), res);
+	delete vec; // remember to retrive size before calling extract()
+	return res;
+}
+
+#line 95 "y.tab.c"
 
 # ifndef YY_CAST
 #  ifdef __cplusplus
@@ -178,7 +190,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 14 "src\\parser.y"
+#line 26 "src\\parser.y"
 
 	long long ival;
 	long double fval;
@@ -190,14 +202,13 @@ union YYSTYPE
 		const char* name; // valid only if type == TYPE_TYPDEF
 	} decl_specif;
 
-	initial_t initial;
 	init_decl_t init_decl;
-	init_decl_t* init_decl_list;
+	std::vector<init_decl_t>* init_decl_list;
 
 	param_t param;
-	param_t* param_list;
+	std::vector<param_t>* param_list;
 
-#line 201 "y.tab.c"
+#line 212 "y.tab.c"
 
 };
 typedef union YYSTYPE YYSTYPE;
@@ -730,22 +741,22 @@ static const yytype_int8 yytranslate[] =
 /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
 static const yytype_int16 yyrline[] =
 {
-       0,    67,    67,    68,    69,    70,    71,    75,    76,    77,
-      78,    79,    80,    81,    82,    86,    87,    91,    92,    93,
-      94,    95,    96,   100,   101,   102,   103,   104,   105,   109,
-     110,   114,   115,   116,   117,   121,   122,   123,   127,   128,
-     129,   133,   134,   135,   136,   137,   141,   142,   143,   147,
-     148,   152,   153,   157,   158,   162,   163,   167,   168,   172,
-     173,   177,   178,   182,   183,   184,   185,   186,   187,   188,
-     189,   190,   191,   192,   196,   197,   201,   288,   289,   299,
-     300,   311,   312,   325,   330,   344,   345,   352,   353,   357,
-     358,   359,   360,   361,   362,   366,   370,   371,   372,   373,
-     376,   377,   381,   382,   383,   384,   393,   403,   417,   418,
-     422,   431,   445,   457,   464,   473,   474,   478,   479,   480,
-     484,   485,   489,   490,   491,   492,   493,   494,   498,   502,
-     503,   507,   508,   512,   513,   517,   518,   522,   523,   527,
-     528,   529,   530,   531,   532,   536,   537,   538,   539,   540,
-     544,   545,   549,   550,   554
+       0,    78,    78,    79,    80,    81,    82,    86,    87,    88,
+      89,    90,    91,    92,    93,    97,    98,   102,   103,   104,
+     105,   106,   107,   111,   112,   113,   114,   115,   116,   120,
+     121,   125,   126,   127,   128,   132,   133,   134,   138,   139,
+     140,   144,   145,   146,   147,   148,   152,   153,   154,   158,
+     159,   163,   164,   168,   169,   173,   174,   178,   179,   183,
+     184,   188,   189,   193,   194,   195,   196,   197,   198,   199,
+     200,   201,   202,   203,   207,   208,   212,   301,   302,   312,
+     313,   324,   325,   338,   343,   352,   353,   360,   361,   365,
+     366,   367,   368,   369,   370,   374,   378,   379,   380,   381,
+     384,   385,   389,   390,   391,   392,   401,   412,   427,   428,
+     432,   437,   446,   459,   466,   475,   476,   480,   481,   482,
+     486,   487,   491,   492,   493,   494,   495,   496,   500,   504,
+     505,   509,   510,   514,   515,   519,   520,   524,   525,   529,
+     530,   531,   532,   533,   534,   538,   539,   540,   541,   542,
+     546,   547,   551,   552,   556
 };
 #endif
 
@@ -1583,11 +1594,11 @@ yyreduce:
   switch (yyn)
     {
   case 76: /* declaration: declaration_specifiers init_declarator_list ';'  */
-#line 202 "src\\parser.y"
+#line 213 "src\\parser.y"
                 { 
 			declare = false;
 
-			for(auto idl = (yyvsp[-1].init_decl_list); idl != nullptr; idl = idl->next)
+			for(auto idl = (yyvsp[-1].init_decl_list)->begin(); idl != (yyvsp[-1].init_decl_list)->end(); idl++)
 			{
 				if ((yyvsp[-2].decl_specif).type == 0)
 				{
@@ -1632,52 +1643,54 @@ yyreduce:
 						// clear SPECIF_TYPEDEF flag and then combine
 						var->specif |= t->specif & ~SPECIF_TYPEDEF;
 						var->depth = t->depth + idl->depth;
-	
-						if (t->category == CATEGORY_ARRAY
-							&& idl->category == CATEGORY_FUNC)
+
+						// if it's function or array, more steps are
+						// required.
+						if (idl->category == CATEGORY_FUNC)
 						{
-							yyerror("returning array is not supported");
+							if (t->category == CATEGORY_ARRAY)
+							{
+								yyerror("returning array is not supported");
+							}
+							var->category = CATEGORY_FUNC;
+							var->nparams = idl->nparams;
+							var->params = idl->params;
+							var->variadic = idl->variadic;
 						}
-
-						// when idl->category == CATEGORY_FUNC
-						// t->category can only be CATEGORY_VAR
-						var->category ==
-							idl->category > t->category
-							? idl->category : t->category;
-
-						if (var->category == CATEGORY_ARRAY)
+						else if (idl->category == CATEGORY_ARRAY
+								|| t->category == CATEGORY_ARRAY)
 						{
-							// combine t->dimens and idl->dimens
-						}	
+							var->category = CATEGORY_ARRAY;
+							// TODO: combine their dimensions
+						}			
 					}
 					// else it is a common type
 					else
 					{
 						var->type = (yyvsp[-2].decl_specif).type;
 						var->specif = (yyvsp[-2].decl_specif).specif;
-						var->category = idl->category;
 						var->depth = idl->depth;
-						// var->dimens = idl->dimens;
-					}
-					var->params = idl->params;
-					// parse typedef in params
-					var->variadic = idl->variadic;
-				}
-			}
 
-			//print_table();
+						var->category = idl->category;
+						var->nparams = idl->nparams;
+						var->params = idl->params;
+						var->variadic = idl->variadic;
+					}
+				}
+			} // end foreach($2)
+			delete (yyvsp[-1].init_decl_list);
 		}
-#line 1671 "y.tab.c"
+#line 1684 "y.tab.c"
     break;
 
   case 77: /* declaration_specifiers: storage_class_specifier  */
-#line 288 "src\\parser.y"
+#line 301 "src\\parser.y"
                                   { (yyval.decl_specif) = (yyvsp[0].decl_specif); declare = true; }
-#line 1677 "y.tab.c"
+#line 1690 "y.tab.c"
     break;
 
   case 78: /* declaration_specifiers: declaration_specifiers storage_class_specifier  */
-#line 290 "src\\parser.y"
+#line 303 "src\\parser.y"
                 {
 			if ((yyvsp[-1].decl_specif).specif & (yyvsp[0].decl_specif).specif)
 			{
@@ -1687,17 +1700,17 @@ yyreduce:
 			(yyval.decl_specif) = (yyvsp[-1].decl_specif);
 			declare = true;
 		}
-#line 1691 "y.tab.c"
+#line 1704 "y.tab.c"
     break;
 
   case 79: /* declaration_specifiers: type_specifier  */
-#line 299 "src\\parser.y"
+#line 312 "src\\parser.y"
                          { (yyval.decl_specif) = (yyvsp[0].decl_specif); declare = true; }
-#line 1697 "y.tab.c"
+#line 1710 "y.tab.c"
     break;
 
   case 80: /* declaration_specifiers: declaration_specifiers type_specifier  */
-#line 301 "src\\parser.y"
+#line 314 "src\\parser.y"
                 {
 			if ((yyvsp[-1].decl_specif).type != 0)
 			{
@@ -1708,17 +1721,17 @@ yyreduce:
 			(yyval.decl_specif) = (yyvsp[-1].decl_specif);
 			declare = true;
 		}
-#line 1712 "y.tab.c"
+#line 1725 "y.tab.c"
     break;
 
   case 81: /* declaration_specifiers: type_qualifier  */
-#line 311 "src\\parser.y"
+#line 324 "src\\parser.y"
                          { (yyval.decl_specif) = (yyvsp[0].decl_specif); declare = true; }
-#line 1718 "y.tab.c"
+#line 1731 "y.tab.c"
     break;
 
   case 82: /* declaration_specifiers: declaration_specifiers type_qualifier  */
-#line 313 "src\\parser.y"
+#line 326 "src\\parser.y"
                 {
 			if ((yyvsp[-1].decl_specif).specif & (yyvsp[0].decl_specif).specif)
 			{
@@ -1728,133 +1741,128 @@ yyreduce:
 			(yyval.decl_specif) = (yyvsp[-1].decl_specif);
 			declare = true;
 		}
-#line 1732 "y.tab.c"
+#line 1745 "y.tab.c"
     break;
 
   case 83: /* init_declarator_list: init_declarator  */
-#line 326 "src\\parser.y"
+#line 339 "src\\parser.y"
                 {
-			(yyval.init_decl_list) = new init_decl_t;
-			*(yyval.init_decl_list) = (yyvsp[0].init_decl);
+			(yyval.init_decl_list) = new std::vector<init_decl_t>;
+			(yyval.init_decl_list)->push_back((yyvsp[0].init_decl));
 		}
-#line 1741 "y.tab.c"
+#line 1754 "y.tab.c"
     break;
 
   case 84: /* init_declarator_list: init_declarator_list ',' init_declarator  */
-#line 331 "src\\parser.y"
+#line 344 "src\\parser.y"
                 {
-			auto idl = new init_decl_t;
-			*idl = (yyvsp[0].init_decl);
-
-			auto p = (yyvsp[-2].init_decl_list);
-			for(; p->next != nullptr; p = p->next);
-			p->next = idl;
-
+			// TODO: check duplicate names
+			(yyvsp[-2].init_decl_list)->push_back((yyvsp[0].init_decl));
 			(yyval.init_decl_list) = (yyvsp[-2].init_decl_list);
 		}
-#line 1756 "y.tab.c"
+#line 1764 "y.tab.c"
     break;
 
   case 85: /* init_declarator: declarator  */
-#line 344 "src\\parser.y"
+#line 352 "src\\parser.y"
                      { (yyval.init_decl) = (yyvsp[0].init_decl); }
-#line 1762 "y.tab.c"
-    break;
-
-  case 86: /* init_declarator: declarator '=' initializer  */
-#line 346 "src\\parser.y"
-                {
-			yyerror("initializer is currently not supported");
-		}
 #line 1770 "y.tab.c"
     break;
 
+  case 86: /* init_declarator: declarator '=' initializer  */
+#line 354 "src\\parser.y"
+                {
+			yyerror("initializer is currently not supported");
+		}
+#line 1778 "y.tab.c"
+    break;
+
   case 87: /* storage_class_specifier: TYPEDEF  */
-#line 352 "src\\parser.y"
+#line 360 "src\\parser.y"
                   { ZERO((yyval.decl_specif)); (yyval.decl_specif).specif = SPECIF_TYPEDEF; }
-#line 1776 "y.tab.c"
+#line 1784 "y.tab.c"
     break;
 
   case 88: /* storage_class_specifier: STATIC  */
-#line 353 "src\\parser.y"
+#line 361 "src\\parser.y"
                  { ZERO((yyval.decl_specif)); (yyval.decl_specif).specif = SPECIF_STATIC; }
-#line 1782 "y.tab.c"
+#line 1790 "y.tab.c"
     break;
 
   case 89: /* type_specifier: VOID  */
-#line 357 "src\\parser.y"
+#line 365 "src\\parser.y"
                { ZERO((yyval.decl_specif)); (yyval.decl_specif).type = TYPE_VOID; }
-#line 1788 "y.tab.c"
+#line 1796 "y.tab.c"
     break;
 
   case 90: /* type_specifier: CHAR  */
-#line 358 "src\\parser.y"
+#line 366 "src\\parser.y"
                { ZERO((yyval.decl_specif)); (yyval.decl_specif).type = TYPE_CHAR; }
-#line 1794 "y.tab.c"
+#line 1802 "y.tab.c"
     break;
 
   case 91: /* type_specifier: SHORT  */
-#line 359 "src\\parser.y"
+#line 367 "src\\parser.y"
                 { ZERO((yyval.decl_specif)); (yyval.decl_specif).type = TYPE_SHORT; }
-#line 1800 "y.tab.c"
+#line 1808 "y.tab.c"
     break;
 
   case 92: /* type_specifier: INT  */
-#line 360 "src\\parser.y"
+#line 368 "src\\parser.y"
               { ZERO((yyval.decl_specif)); (yyval.decl_specif).type = TYPE_INT; }
-#line 1806 "y.tab.c"
+#line 1814 "y.tab.c"
     break;
 
   case 93: /* type_specifier: LONG  */
-#line 361 "src\\parser.y"
+#line 369 "src\\parser.y"
                { ZERO((yyval.decl_specif)); (yyval.decl_specif).type = TYPE_LONG; }
-#line 1812 "y.tab.c"
+#line 1820 "y.tab.c"
     break;
 
   case 94: /* type_specifier: TYPE  */
-#line 362 "src\\parser.y"
+#line 370 "src\\parser.y"
                { ZERO((yyval.decl_specif)); (yyval.decl_specif).type = TYPE_TYPEDEF; (yyval.decl_specif).name = (yyvsp[0].sval); }
-#line 1818 "y.tab.c"
+#line 1826 "y.tab.c"
     break;
 
   case 95: /* type_qualifier: CONST  */
-#line 366 "src\\parser.y"
+#line 374 "src\\parser.y"
                 { ZERO((yyval.decl_specif)); (yyval.decl_specif).specif = SPECIF_CONST; }
-#line 1824 "y.tab.c"
+#line 1832 "y.tab.c"
     break;
 
   case 100: /* declarator: pointer direct_declarator  */
-#line 376 "src\\parser.y"
+#line 384 "src\\parser.y"
                                     { (yyvsp[0].init_decl).depth = (yyvsp[-1].ival); (yyval.init_decl) = (yyvsp[0].init_decl); }
-#line 1830 "y.tab.c"
+#line 1838 "y.tab.c"
     break;
 
   case 101: /* declarator: direct_declarator  */
-#line 377 "src\\parser.y"
+#line 385 "src\\parser.y"
                             { (yyval.init_decl) = (yyvsp[0].init_decl); }
-#line 1836 "y.tab.c"
+#line 1844 "y.tab.c"
     break;
 
   case 102: /* direct_declarator: ID  */
-#line 381 "src\\parser.y"
+#line 389 "src\\parser.y"
              { ZERO((yyval.init_decl)); (yyval.init_decl).name = (yyvsp[0].sval); (yyval.init_decl).category = CATEGORY_VAR; }
-#line 1842 "y.tab.c"
+#line 1850 "y.tab.c"
     break;
 
   case 103: /* direct_declarator: direct_declarator '[' ']'  */
-#line 382 "src\\parser.y"
+#line 390 "src\\parser.y"
                                     { yyerror("array is currently not supported"); }
-#line 1848 "y.tab.c"
+#line 1856 "y.tab.c"
     break;
 
   case 104: /* direct_declarator: direct_declarator '[' assignment_expression ']'  */
-#line 383 "src\\parser.y"
+#line 391 "src\\parser.y"
                                                           { yyerror("array is currently not supported"); }
-#line 1854 "y.tab.c"
+#line 1862 "y.tab.c"
     break;
 
   case 105: /* direct_declarator: direct_declarator '(' ')'  */
-#line 385 "src\\parser.y"
+#line 393 "src\\parser.y"
                 {
 			if ((yyvsp[-2].init_decl).category != CATEGORY_VAR)
 			{
@@ -1863,80 +1871,73 @@ yyreduce:
 			(yyvsp[-2].init_decl).category = CATEGORY_FUNC;
 			(yyval.init_decl) = (yyvsp[-2].init_decl);
 		}
-#line 1867 "y.tab.c"
+#line 1875 "y.tab.c"
     break;
 
   case 106: /* direct_declarator: direct_declarator '(' parameter_list ')'  */
-#line 394 "src\\parser.y"
+#line 402 "src\\parser.y"
                 {
 			if ((yyvsp[-3].init_decl).category != CATEGORY_VAR)
 			{
 				yyerror("illegal function declaration");
 			}
 			(yyvsp[-3].init_decl).category = CATEGORY_FUNC;
-			(yyvsp[-3].init_decl).params = (yyvsp[-1].param_list);
+			(yyvsp[-3].init_decl).nparams = (yyvsp[-1].param_list)->size();
+			(yyvsp[-3].init_decl).params = extract((yyvsp[-1].param_list));
 			(yyval.init_decl) = (yyvsp[-3].init_decl);
 		}
-#line 1881 "y.tab.c"
+#line 1890 "y.tab.c"
     break;
 
   case 107: /* direct_declarator: direct_declarator '(' parameter_list ',' ELLIPSIS ')'  */
-#line 404 "src\\parser.y"
+#line 413 "src\\parser.y"
                 {
 			if ((yyvsp[-5].init_decl).category != CATEGORY_VAR)
 			{
 				yyerror("illegal function declaration");
 			}
 			(yyvsp[-5].init_decl).category = CATEGORY_FUNC;
-			(yyvsp[-5].init_decl).params = (yyvsp[-3].param_list);
+			(yyvsp[-5].init_decl).nparams = (yyvsp[-3].param_list)->size();
+			(yyvsp[-5].init_decl).params = extract((yyvsp[-3].param_list));
 			(yyvsp[-5].init_decl).variadic = true;
 			(yyval.init_decl) = (yyvsp[-5].init_decl);
 		}
-#line 1896 "y.tab.c"
+#line 1906 "y.tab.c"
     break;
 
   case 108: /* pointer: '*'  */
-#line 417 "src\\parser.y"
+#line 427 "src\\parser.y"
               { (yyval.ival) = 1; }
-#line 1902 "y.tab.c"
+#line 1912 "y.tab.c"
     break;
 
   case 109: /* pointer: '*' pointer  */
-#line 418 "src\\parser.y"
+#line 428 "src\\parser.y"
                       { (yyval.ival) = (yyvsp[0].ival) + 1; }
-#line 1908 "y.tab.c"
+#line 1918 "y.tab.c"
     break;
 
   case 110: /* parameter_list: parameter_declaration  */
-#line 423 "src\\parser.y"
+#line 433 "src\\parser.y"
                 {
-			(yyval.param_list) = new param_t;
-			*(yyval.param_list) = (yyvsp[0].param);
-
-			//$$->next = nullptr;
-			// no need to set this, as it was already set in 
-			// parameter_declaration using ZERO()
+			(yyval.param_list) = new std::vector<param_t>;
+			(yyval.param_list)->push_back((yyvsp[0].param));
 		}
-#line 1921 "y.tab.c"
+#line 1927 "y.tab.c"
     break;
 
   case 111: /* parameter_list: parameter_list ',' parameter_declaration  */
-#line 432 "src\\parser.y"
+#line 438 "src\\parser.y"
                 {
-			auto idl = new param_t;
-			*idl = (yyvsp[0].param);
-
-			auto p = (yyvsp[-2].param_list);
-			for(; p->next != nullptr; p = p->next);
-			p->next = idl;
-
+			// TODO: check duplicate names
+			(yyvsp[-2].param_list)->push_back((yyvsp[0].param));
 			(yyval.param_list) = (yyvsp[-2].param_list);
 		}
-#line 1936 "y.tab.c"
+#line 1937 "y.tab.c"
     break;
 
   case 112: /* parameter_declaration: declaration_specifiers declarator  */
-#line 446 "src\\parser.y"
+#line 447 "src\\parser.y"
                 { 
 			if ((yyvsp[0].init_decl).category != CATEGORY_VAR)
 			{
@@ -1947,33 +1948,34 @@ yyreduce:
 			(yyval.param).specif = (yyvsp[-1].decl_specif).specif;
 			(yyval.param).depth = (yyvsp[0].init_decl).depth;
 			(yyval.param).name = (yyvsp[0].init_decl).name;
+			// TODO expand TYPE_TYPEDEF
 		}
-#line 1952 "y.tab.c"
+#line 1954 "y.tab.c"
     break;
 
   case 113: /* parameter_declaration: declaration_specifiers pointer  */
-#line 458 "src\\parser.y"
+#line 460 "src\\parser.y"
                 { 
 			ZERO((yyval.param));
 			(yyval.param).type = (yyvsp[-1].decl_specif).type; 
 			(yyval.param).specif = (yyvsp[-1].decl_specif).specif;
 			(yyval.param).depth = (yyvsp[0].ival);
 		}
-#line 1963 "y.tab.c"
+#line 1965 "y.tab.c"
     break;
 
   case 114: /* parameter_declaration: declaration_specifiers  */
-#line 465 "src\\parser.y"
+#line 467 "src\\parser.y"
                 { 
 			ZERO((yyval.param));
 			(yyval.param).type = (yyvsp[0].decl_specif).type; 
 			(yyval.param).specif = (yyvsp[0].decl_specif).specif;
 		}
-#line 1973 "y.tab.c"
+#line 1975 "y.tab.c"
     break;
 
 
-#line 1977 "y.tab.c"
+#line 1979 "y.tab.c"
 
       default: break;
     }
@@ -2166,5 +2168,5 @@ yyreturnlab:
   return yyresult;
 }
 
-#line 557 "src\\parser.y"
+#line 559 "src\\parser.y"
 
