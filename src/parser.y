@@ -450,7 +450,7 @@ int main()
 	ParseInit(par);
 
 	int token;
-	while((token = yylex()) <= 0)
+	while((token = yylex()) > 0)
 	{
 		Parse(par, token, yylval);
 	}
