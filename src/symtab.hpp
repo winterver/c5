@@ -4,12 +4,7 @@
 #define CATEGORY_ARRAY 2
 #define CATEGORY_FUNC 3
 
-#define TYPE_VOID 1
-#define TYPE_CHAR 2
-#define TYPE_SHORT 3
-#define TYPE_INT 4
-#define TYPE_LONG 5
-#define TYPE_STRUCT 6
+#include "semantics.hpp" // imports TYPE_*
 #define TYPE_TYPEDEF 7 // used by parser. never occurs in symbol table
 
 #define SPECIF_CONST 1

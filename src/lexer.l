@@ -3,20 +3,22 @@
 %option nounistd
 
 %{
-#include "symtab.hpp"
-#include <vector>
-#include "y.tab.h"
+
+#include "parser.h"
+#include "semantics.hpp"
+#include <string>
 
 #ifdef _WIN32
 #  include <io.h>
 #  define isatty _isatty 
 #endif
 
-#include <string>
+token_value_t yylval;
 void yyerror(const char* s);
 static int identifier_or_type();
 static void process_escape_sequence();
 static const char* pool(const char* name);
+
 %}
 
 D			[0-9]
@@ -24,8 +26,8 @@ L			[a-zA-Z_]
 H			[a-fA-F0-9]
 E			([Ee][+-]?{D}+)
 P			([Pp][+-]?{D}+)
-FS			(f|F|l|L)
-IS			((u|U)|(u|U)?(l|L|ll|LL)|(l|L|ll|LL)(u|U))
+FS			(f|F)
+IS			(l|L)
 
 %%
 
@@ -53,6 +55,7 @@ IS			((u|U)|(u|U)?(l|L|ll|LL)|(l|L|ll|LL)(u|U))
 "break"								{ return BREAK; }
 "return"							{ return RETURN; }
 "goto"								{ return GOTO; }
+"sizeof"							{ return SIZEOF; }
 
 	/* identifier & string literal */
 {L}({L}|{D})*						{
@@ -66,52 +69,132 @@ IS			((u|U)|(u|U)?(l|L|ll|LL)|(l|L|ll|LL)(u|U))
 										return STR;
 									}
 	/* hexdecimal & octal & decimal & char */
-0[xX]{H}+{IS}?						{
+0[xX]{H}+							{
+										yylval.type = TYPE_INT;
 										yylval.ival = std::stoll(yytext, nullptr, 16);
 										return NUM;
 									}
-0[0-7]*[IS]?						{
+
+0[xX]{H}+{IS}						{
+										yylval.type = TYPE_LONG;
+										yylval.ival = std::stoll(yytext, nullptr, 16);
+										return NUM;
+									}
+0[0-7]*								{
+										yylval.type = TYPE_INT;
 										yylval.ival = std::stoll(yytext, nullptr, 8);
 										return NUM;
 									}
-[1-9]{D}*{IS}?						{
+
+0[0-7]*{IS}							{
+										yylval.type = TYPE_LONG;
+										yylval.ival = std::stoll(yytext, nullptr, 8);
+										return NUM;
+									}
+[1-9]{D}*							{
+										yylval.type = TYPE_INT;
+										yylval.ival = std::stoll(yytext);
+										return NUM;
+									}
+[1-9]{D}*{IS}						{
+										yylval.type = TYPE_LONG;
 										yylval.ival = std::stoll(yytext);
 										return NUM;
 									}
 '(\\.|[^\\'\n])+'					{
+										yylval.type = TYPE_INT;
 										process_escape_sequence();
 										// +1 to skip the initial '
 										yylval.ival = *(yytext+1);
 										return NUM;
 									}
 	/* floating point */
-{D}+{E}{FS}?						{
+{D}+{E}								{
+										yylval.type = TYPE_DOUBLE;
 										yylval.fval = std::stold(yytext);
 										return DEC;
 									}
-{D}*"."{D}+{E}?{FS}?				{
+{D}+{E}{FS}							{
+										yylval.type = TYPE_FLOAT;
 										yylval.fval = std::stold(yytext);
 										return DEC;
 									}
-{D}+"."{D}*{E}?{FS}?				{
+{D}*"."{D}+{E}?						{
+										yylval.type = TYPE_DOUBLE;
 										yylval.fval = std::stold(yytext);
 										return DEC;
 									}
-0[xX]{H}+{P}{FS}?					{
+{D}*"."{D}+{E}?{FS}					{
+										yylval.type = TYPE_FLOAT;
 										yylval.fval = std::stold(yytext);
 										return DEC;
 									}
-0[xX]{H}*"."{H}+{P}?{FS}?     		{
+{D}+"."{D}*{E}?						{
+										yylval.type = TYPE_DOUBLE;
 										yylval.fval = std::stold(yytext);
 										return DEC;
 									}
-0[xX]{H}+"."{H}*{P}?{FS}?     		{
+{D}+"."{D}*{E}?{FS}					{
+										yylval.type = TYPE_FLOAT;
+										yylval.fval = std::stold(yytext);
+										return DEC;
+									}
+0[xX]{H}+{P}						{
+										yylval.type = TYPE_DOUBLE;
+										yylval.fval = std::stold(yytext);
+										return DEC;
+									}
+0[xX]{H}+{P}{FS}					{
+										yylval.type = TYPE_FLOAT;
+										yylval.fval = std::stold(yytext);
+										return DEC;
+									}
+0[xX]{H}*"."{H}+{P}?	     		{
+										yylval.type = TYPE_DOUBLE;
+										yylval.fval = std::stold(yytext);
+										return DEC;
+									}
+0[xX]{H}*"."{H}+{P}?{FS}     		{
+										yylval.type = TYPE_FLOAT;
+										yylval.fval = std::stold(yytext);
+										return DEC;
+									}
+0[xX]{H}+"."{H}*{P}?	     		{
+										yylval.type = TYPE_DOUBLE;
+										yylval.fval = std::stold(yytext);
+										return DEC;
+									}
+0[xX]{H}+"."{H}*{P}?{FS}     		{
+										yylval.type = TYPE_FLOAT;
 										yylval.fval = std::stold(yytext);
 										return DEC;
 									}
 
 	/* single-character operators & symbols */
-[~!%^&*()\-+={}\[\]|;:<>,./]		{ return *yytext; }
+";"									{ return SEM; }
+","									{ return COM; }
+"("									{ return LP; }
+")"									{ return RP; }
+"["									{ return LS; }
+"]"									{ return RS; }
+"{"									{ return LB; }
+"}"									{ return RB; }
+"="									{ return ASGN_OP; }
+"."									{ return DOT_OP; }
+"+"									{ return ADD_OP; }
+"-"									{ return SUB_OP; }
+"*"									{ return MUL_OP; }
+"/"									{ return DIV_OP; }
+"%"									{ return MOD_OP; }
+"&"									{ return AND_OP; }
+"|"									{ return OR_OP; }
+"^"									{ return XOR_OP; }
+"~"									{ return NOT_OP; }
+"!"									{ return LOGNOT; }
+"<"									{ return LT_OP; }
+">"									{ return GT_OP; }
+"?"									{ return QUE; }
+":"									{ return COL; }
 
 	/* multi-character operators */
 "=="								{ return EQ_OP; }
@@ -148,7 +231,6 @@ IS			((u|U)|(u|U)?(l|L|ll|LL)|(l|L|ll|LL)(u|U))
 
 #include <stdio.h>
 #include <string.h>
-#include <string>
 #include <unordered_set>
 #include "symtab.hpp"
 extern bool declare;
