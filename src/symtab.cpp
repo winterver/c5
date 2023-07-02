@@ -69,6 +69,11 @@ void next_scope()
 	scope++;
 }
 
+void prev_scope()
+{
+	scope--;
+}
+
 void exit_scope()
 {
 	for (int i = 0; i < SIZE; i++){

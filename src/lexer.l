@@ -60,7 +60,7 @@ IS			(l|L)
 	/* identifier & string literal */
 {L}({L}|{D})*						{
 										yylval.sval = pool(yytext);
-										return identifier_or_type();
+										return ID;
 									}
 \"([^\\\"]|\\.)*\"  				{
 										process_escape_sequence();
@@ -239,15 +239,6 @@ void yyerror(const char* s)
 { 
 	printf("(%d) %s", yylineno, s); 
 	exit(-1); 
-}
-
-static int identifier_or_type()
-{
-	if (declare)
-	{
-		return ID;	
-	}
-	return lookup_type(yylval.sval) ? TYPE : ID;
 }
 
 static void process_escape_sequence()

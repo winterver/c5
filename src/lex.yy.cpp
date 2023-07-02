@@ -1060,7 +1060,7 @@ YY_RULE_SETUP
 #line 62 "src\\lexer.l"
 {
 										yylval.sval = pool(yytext);
-										return identifier_or_type();
+										return ID;
 									}
 	YY_BREAK
 case 22:
@@ -2544,15 +2544,6 @@ void yyerror(const char* s)
 { 
 	printf("(%d) %s", yylineno, s); 
 	exit(-1); 
-}
-
-static int identifier_or_type()
-{
-	if (declare)
-	{
-		return ID;	
-	}
-	return lookup_type(yylval.sval) ? TYPE : ID;
 }
 
 static void process_escape_sequence()

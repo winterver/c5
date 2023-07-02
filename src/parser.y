@@ -10,11 +10,11 @@
 void yyerror(const char* s);
 
 // states of the parser
-bool declare;
+int localoffset = 0;
+int globaloffset = 0;
 
 struct decl_specif_t {
 	int type; 
-	int depth; // valid only if type == TYPE_TYPDEF
 };
 
 struct init_decl_t {
@@ -39,37 +39,20 @@ T* extract(std::vector<T>* vec)
 	return res;
 }
 
-sym_t* check_signature(decl_specif_t A, func_decl_t B) {
-	sym_t* look = lookup(B.name);
-	if (look != nullptr)
+int get_size(int type, int depth)
+{
+	if (depth)
+		return 8;
+	switch(type)
 	{
-		if (look->category != CATEGORY_FUNC)
-		{
-			yyerror("name conflict");
-		}
-		
-		// compare signatures
-		if (look->type != A.type || look->depth != (A.depth + B.depth))
-		{
-			yyerror("signature mismatch");
-		}
-
-		if (look->nparams != B.nparams || look->variadic != B.variadic)
-		{
-			yyerror("signature mismatch");
-		}
-
-		for (int i = 0; i < look->nparams; i++)
-		{
-			auto& lhs = look->params[i];
-			auto& rhs = B.params[i];
-			if (lhs.type != rhs.type || lhs.depth != rhs.depth)
-			{
-				yyerror("signature mismatch");
-			}
-		}
+	case TYPE_CHAR: return 1;
+	case TYPE_SHORT: return 2;
+	case TYPE_INT: return 4;
+	case TYPE_LONG: return 8;
+	case TYPE_VOID: return 0;
 	}
-	return look;
+	yyerror("illegal type");
+	return 0;
 }
 
 } // end of %include
@@ -101,25 +84,61 @@ sym_t* check_signature(decl_specif_t A, func_decl_t B) {
 %type parameter_list { std::vector<param_t>* }
 %type function_declarator { func_decl_t }
 
+%type expression { expr_t* }
+%type primary_expression { expr_t* }
+
 %destructor init_declarator_list { delete $$; }
 %destructor parameter_list { delete $$; }
+
+%syntax_error { yyerror("syntax error"); }
 
 %start_symbol start
 start ::= .
 start ::= translation_unit.
 
-primary_expression ::= ID.
-primary_expression ::= NUM.
-primary_expression ::= DEC.
-primary_expression ::= STR.
-primary_expression ::= LP expression RP.
+primary_expression(R) ::= ID(A). {
+	R = new expr_t;
+	R->category = CATEGORY_VARREF;
+	R->left = true;
+
+	auto sym = lookup(A.sval);
+	R->type = sym->type;
+	R->depth = sym->depth;
+	R->varref = sym;
+}
+primary_expression(R) ::= NUM(A). {
+	R = new expr_t;
+	R->category = CATEGORY_LITERAL;
+	R->left = false;
+
+	R->type = A.type;
+	R->depth = 0;
+	R->ival = A.ival;
+}
+primary_expression(R) ::= DEC(A). {
+	R = new expr_t;
+	R->category = CATEGORY_LITERAL;
+	R->left = false;
+
+	R->type = A.type;
+	R->depth = 0;
+	R->fval = A.fval;
+}
+primary_expression(R) ::= STR(A). {
+	R = new expr_t;
+	R->category = CATEGORY_LITERAL;
+	R->left = false;
+
+	R->type = TYPE_CHAR;
+	R->depth = 1;
+	R->sval = A.sval;
+}
+primary_expression(R) ::= LP expression RP. { /*TODO*/ }
 
 postfix_expression ::= primary_expression.
 postfix_expression ::= postfix_expression LS expression RS.
 postfix_expression ::= postfix_expression LP RP.
 postfix_expression ::= postfix_expression LP argument_expression_list RP.
-postfix_expression ::= postfix_expression DOT_OP ID.
-postfix_expression ::= postfix_expression PTR_OP ID.
 postfix_expression ::= postfix_expression INC_OP.
 postfix_expression ::= postfix_expression DEC_OP.
 
@@ -203,18 +222,33 @@ expression ::= assignment_expression.
 expression ::= expression COM assignment_expression.
 
 variable_declaration ::= declaration_specifiers(A) init_declarator_list(B) SEM. {
-	declare = false;
-
 	for (auto& idl : *B)
 	{
 		sym_t* var = insert(idl.name);
-		var->category = CATEGORY_VAR;
 		var->type = A.type;
-		var->depth = A.depth + idl.depth;
+		var->depth = idl.depth;
+		if (var->type == TYPE_VOID && var->depth == 0)
+		{
+			yyerror("illegal type");
+		}
+		
+		if (var->scope == 0)
+		{
+			var->category = CATEGORY_GLOBAL;
+			var->offset = globaloffset;
+			globaloffset += get_size(var->type, var->depth);
+		}
+		else
+		{
+			var->category = CATEGORY_LOCAL;
+			// stack grows downward
+			localoffset -= get_size(var->type, var->depth);
+			var->offset = localoffset;
+		}
 	}
 }
 
-declaration_specifiers(R) ::= type_specifier(A). { R = A; declare = true; }
+declaration_specifiers(R) ::= type_specifier(A). { R = A; }
 
 init_declarator_list(R) ::= init_declarator(A). {
 	R = new std::vector<init_decl_t>;
@@ -249,13 +283,6 @@ parameter_list(R) ::= parameter_declaration(A). {
 	R->push_back(A);
 }
 parameter_list(R) ::= parameter_list(A) COM parameter_declaration(B). {
-	for (auto& p : *A)
-	{
-		if (p.name == B.name)
-		{
-			yyerror("parameter redefinition");
-		}
-	}
 	A->push_back(B);
 	R = A;
 }
@@ -265,15 +292,6 @@ parameter_declaration(R) ::= declaration_specifiers(A) declarator(B). {
 	R.type = A.type; 
 	R.depth = B.depth;
 	R.name = B.name;
-}
-parameter_declaration(R) ::= declaration_specifiers(A) pointer(B). { 
-	ZERO(R);
-	R.type = A.type; 
-	R.depth = B;
-}
-parameter_declaration(R) ::= declaration_specifiers(A). { 
-	ZERO(R);
-	R.type = A.type; 
 }
 
 type_name ::= declaration_specifiers.
@@ -322,7 +340,6 @@ translation_unit ::= external_declaration.
 translation_unit ::= translation_unit external_declaration.
 
 external_declaration ::= variable_declaration.
-external_declaration ::= function_declaration.
 external_declaration ::= function_definition.
 
 function_declarator(R) ::= declarator(A) LP RP. {
@@ -347,46 +364,51 @@ function_declarator(R) ::= declarator(A) LP parameter_list(B) COM ELLIPSIS RP. {
 	R.variadic = true;
 }
 
-function_declaration ::= declaration_specifiers(A) function_declarator(B) SEM. {
-	sym_t* func = check_signature(A, B);
-	if (func == nullptr)
+function_signature ::= declaration_specifiers(A) function_declarator(B). {
+	if (lookup(B.name))
 	{
-		func = insert(B.name);
-	}
-	else
-	{
-		delete func->params;
+		yyerror("function name conflict");
 	}
 
+	sym_t* func = insert(B.name);
 	func->category = CATEGORY_FUNC;
 	func->type = A.type;
-	func->depth = A.depth + B.depth;
+	func->depth = B.depth;
 	func->name = B.name;
 	func->nparams = B.nparams;
 	func->params = B.params;
 	func->variadic = B.variadic;
+
+	next_scope();
+
+	int paramoffset = 8; // bp, retaddr
+	for(int i = 0; i < func->nparams; i++)
+	{
+		param_t p = func->params[i];
+		sym_t* param = insert(p.name);
+
+		param->category = CATEGORY_PARAM;
+		param->offset = paramoffset;
+		paramoffset += get_size(p.type, p.depth);
+	
+		param->type = p.type;
+		param->depth = p.depth;
+
+		if (param->type == TYPE_VOID && param->depth == 0)
+		{
+			yyerror("illegal type");
+		}
+	}
+
+	prev_scope();
 }
 
-function_definition ::= declaration_specifiers(A) function_declarator(B) compound_statement. {
-	sym_t* func = check_signature(A, B);
-	if (func == nullptr)
-	{
-		func = insert(B.name);
-	}
-	else
-	{
-		delete func->params;
-	}
+function_definition ::= function_signature compound_statement. {
+	exit_scope();
 
-	func->category = CATEGORY_FUNC;
-	func->type = A.type;
-	func->depth = A.depth + B.depth;
-	func->name = B.name;
-	func->nparams = B.nparams;
-	func->params = B.params;
-	func->variadic = B.variadic;
-	//TODO
-	//func->stmts = nullptr;
+	// A->stmts = B;
+	// A->local_stack_size = -localoffset;
+	// localoffset = 0;
 }
 
 %code {
