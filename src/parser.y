@@ -4,6 +4,7 @@
 #include <string.h>
 #include <vector>
 #include "symtab.hpp"
+#include "semantics.hpp"
 
 #define ZERO(s) memset(&s, 0, sizeof(s))
 void yyerror(const char* s);
@@ -13,8 +14,20 @@ bool declare;
 
 struct decl_specif_t {
 	int type; 
-	int specif; 
-	const char* name; // valid only if type == TYPE_TYPDEF
+	int depth; // valid only if type == TYPE_TYPDEF
+};
+
+struct init_decl_t {
+	int depth;
+	const char* name;
+};
+
+struct func_decl_t {
+	int depth;
+	const char* name;
+	int nparams;
+	param_t* params;
+	bool variadic;
 };
 
 // helper function
@@ -24,6 +37,39 @@ T* extract(std::vector<T>* vec)
 	auto res = new T[vec->size()];
 	std::copy(vec->begin(), vec->end(), res);
 	return res;
+}
+
+sym_t* check_signature(decl_specif_t A, func_decl_t B) {
+	sym_t* look = lookup(B.name);
+	if (look != nullptr)
+	{
+		if (look->category != CATEGORY_FUNC)
+		{
+			yyerror("name conflict");
+		}
+		
+		// compare signatures
+		if (look->type != A.type || look->depth != (A.depth + B.depth))
+		{
+			yyerror("signature mismatch");
+		}
+
+		if (look->nparams != B.nparams || look->variadic != B.variadic)
+		{
+			yyerror("signature mismatch");
+		}
+
+		for (int i = 0; i < look->nparams; i++)
+		{
+			auto& lhs = look->params[i];
+			auto& rhs = B.params[i];
+			if (lhs.type != rhs.type || lhs.depth != rhs.depth)
+			{
+				yyerror("signature mismatch");
+			}
+		}
+	}
+	return look;
 }
 
 } // end of %include
@@ -45,9 +91,7 @@ T* extract(std::vector<T>* vec)
 
 %token_type { token_value_t }
 %type declaration_specifiers { decl_specif_t }
-%type storage_class_specifier { decl_specif_t }
 %type type_specifier { decl_specif_t }
-%type type_qualifier { decl_specif_t }
 %type pointer { int }
 %type direct_declarator { init_decl_t }
 %type declarator { init_decl_t }
@@ -55,6 +99,7 @@ T* extract(std::vector<T>* vec)
 %type init_declarator_list { std::vector<init_decl_t>* }
 %type parameter_declaration { param_t }
 %type parameter_list { std::vector<param_t>* }
+%type function_declarator { func_decl_t }
 
 %destructor init_declarator_list { delete $$; }
 %destructor parameter_list { delete $$; }
@@ -157,131 +202,25 @@ assignment_operator ::= ORASGN.
 expression ::= assignment_expression.
 expression ::= expression COM assignment_expression.
 
-declaration ::= declaration_specifiers(A) init_declarator_list(B) SEM. {
+variable_declaration ::= declaration_specifiers(A) init_declarator_list(B) SEM. {
 	declare = false;
 
-	for(auto idl = B->begin(); idl != B->end(); idl++)
+	for (auto& idl : *B)
 	{
-		if (A.type == 0)
-		{
-			yyerror("no type specifier");
-		}
-
-		// if it is a typedef declaration
-		if (A.specif & SPECIF_TYPEDEF)
-		{
-			if (idl->category == CATEGORY_VAR 
-				|| idl->category == CATEGORY_ARRAY)
-			{
-				sym_t* nt = insert(idl->name);
-				nt->category = idl->category;
-				nt->type = A.type;
-				nt->specif = A.specif;
-				nt->depth = idl->depth;
-			}
-			else
-			{
-				yyerror("unsupported typedef declaration");
-			}
-		}
-		else { 
-			// else it is a common declaration
-			sym_t* var = insert(idl->name);
-
-			// if A.type is a type defined with typedef
-			if (A.type == TYPE_TYPEDEF)
-			{
-				sym_t* t = lookup_type(A.name);
-				if (t == nullptr)
-				{
-					yyerror("no such type");
-				}
-				if (A.specif & t->specif)
-				{
-					yyerror("duplicate specifier");
-				}
-
-				var->type = t->type;
-				// clear SPECIF_TYPEDEF flag and then combine
-				var->specif |= t->specif & ~SPECIF_TYPEDEF;
-				var->depth = t->depth + idl->depth;
-
-				// if it's function or array, more steps are
-				// required.
-				if (idl->category == CATEGORY_FUNC)
-				{
-					if (t->category == CATEGORY_ARRAY)
-					{
-						yyerror("returning array is not supported");
-					}
-					var->category = CATEGORY_FUNC;
-					var->nparams = idl->nparams;
-					var->params = idl->params;
-					var->variadic = idl->variadic;
-				}
-				else if (idl->category == CATEGORY_ARRAY
-						|| t->category == CATEGORY_ARRAY)
-				{
-					var->category = CATEGORY_ARRAY;
-					// TODO: combine their dimensions
-				}			
-			}
-			// else it is a common type
-			else
-			{
-				var->type = A.type;
-				var->specif = A.specif;
-				var->depth = idl->depth;
-
-				var->category = idl->category;
-				var->nparams = idl->nparams;
-				var->params = idl->params;
-				var->variadic = idl->variadic;
-			}
-		}
-	} // end foreach(B)
-}
-
-declaration_specifiers(R) ::= storage_class_specifier(A). { R = A; declare = true; }
-declaration_specifiers(R) ::= declaration_specifiers(A) storage_class_specifier(B). {
-	if (A.specif & B.specif)
-	{
-		yyerror("duplicate specifier");
+		sym_t* var = insert(idl.name);
+		var->category = CATEGORY_VAR;
+		var->type = A.type;
+		var->depth = A.depth + idl.depth;
 	}
-	A.specif |= B.specif;
-	R = A;
-	declare = true;
 }
 
 declaration_specifiers(R) ::= type_specifier(A). { R = A; declare = true; }
-declaration_specifiers(R) ::= declaration_specifiers(A) type_specifier(B). {
-	if (A.type != 0)
-	{
-		yyerror("multiple type specifier");
-	}
-	A.type = B.type;
-	A.name = B.name;
-	R = A;
-	declare = true;
-}
-
-declaration_specifiers(R) ::= type_qualifier(A). { R = A; declare = true; }
-declaration_specifiers(R) ::= declaration_specifiers(A) type_qualifier(B). {
-	if (A.specif & B.specif)
-	{
-		yyerror("duplicate qualifier");
-	}
-	A.specif |= B.specif;
-	R = A;
-	declare = true;
-}
 
 init_declarator_list(R) ::= init_declarator(A). {
 	R = new std::vector<init_decl_t>;
 	R->push_back(A);
 }
 init_declarator_list(R) ::= init_declarator_list(A) COM init_declarator(B). {
-	// TODO: check duplicate names
 	A->push_back(B);
 	R = A;
 }
@@ -291,58 +230,16 @@ init_declarator ::= declarator ASGN_OP initializer. {
 	yyerror("initializer is currently not supported");
 }
 
-storage_class_specifier(R) ::= TYPEDEF. { ZERO(R); R.specif = SPECIF_TYPEDEF; }
-storage_class_specifier(R) ::= STATIC. { ZERO(R); R.specif = SPECIF_STATIC; }
-
 type_specifier(R) ::= VOID. { ZERO(R); R.type = TYPE_VOID; }
 type_specifier(R) ::= CHAR. { ZERO(R); R.type = TYPE_CHAR; }
 type_specifier(R) ::= SHORT. { ZERO(R); R.type = TYPE_SHORT; }
 type_specifier(R) ::= INT. { ZERO(R); R.type = TYPE_INT; }
 type_specifier(R) ::= LONG. { ZERO(R); R.type = TYPE_LONG; }
-type_specifier(R) ::= TYPE(A). { ZERO(R); R.type = TYPE_TYPEDEF; R.name = A.sval; }
-
-type_qualifier(R) ::= CONST. { ZERO(R); R.specif = SPECIF_CONST; }
-
-specifier_qualifier_list ::= type_specifier.
-specifier_qualifier_list ::= type_specifier specifier_qualifier_list.
-specifier_qualifier_list ::= type_qualifier.
-specifier_qualifier_list ::= type_qualifier specifier_qualifier_list.
 
 declarator(R) ::= pointer(A) direct_declarator(B). { B.depth = A; R = B; }
 declarator(R) ::= direct_declarator(A). { R = A; }
 
-direct_declarator(R) ::= ID(A). { ZERO(R); R.name = A.sval; R.category = CATEGORY_VAR; }
-direct_declarator ::= direct_declarator LS RS. { yyerror("array is currently not supported"); }
-direct_declarator ::= direct_declarator LS assignment_expression RS. { yyerror("array is currently not supported"); }
-direct_declarator(R) ::= direct_declarator(A) LP RP. {
-	if (A.category != CATEGORY_VAR)
-	{
-		yyerror("illegal function declaration");
-	}
-	A.category = CATEGORY_FUNC;
-	R = A;
-}
-direct_declarator(R) ::= direct_declarator(A) LP parameter_list(B) RP. {
-	if (A.category != CATEGORY_VAR)
-	{
-		yyerror("illegal function declaration");
-	}
-	A.category = CATEGORY_FUNC;
-	A.nparams = B->size();
-	A.params = extract(B);
-	R = A;
-}
-direct_declarator(R) ::= direct_declarator(A) LP parameter_list(B) COM ELLIPSIS RP. {
-	if (A.category != CATEGORY_VAR)
-	{
-		yyerror("illegal function declaration");
-	}
-	A.category = CATEGORY_FUNC;
-	A.nparams = B->size();
-	A.params = extract(B);
-	A.variadic = true;
-	R = A;
-}
+direct_declarator(R) ::= ID(A). { ZERO(R); R.name = A.sval; }
 
 pointer(R) ::= MUL_OP. { R = 1; }
 pointer(R) ::= MUL_OP pointer(A). { R = A + 1; }
@@ -352,44 +249,37 @@ parameter_list(R) ::= parameter_declaration(A). {
 	R->push_back(A);
 }
 parameter_list(R) ::= parameter_list(A) COM parameter_declaration(B). {
-	// TODO: check duplicate names
+	for (auto& p : *A)
+	{
+		if (p.name == B.name)
+		{
+			yyerror("parameter redefinition");
+		}
+	}
 	A->push_back(B);
 	R = A;
 }
 
 parameter_declaration(R) ::= declaration_specifiers(A) declarator(B). { 
-	if (B.category != CATEGORY_VAR)
-	{
-		yyerror("only value-type and pointers are supported in parameter list");
-	}
 	ZERO(R);
 	R.type = A.type; 
-	R.specif = A.specif;
 	R.depth = B.depth;
 	R.name = B.name;
-	// TODO expand TYPE_TYPEDEF
 }
 parameter_declaration(R) ::= declaration_specifiers(A) pointer(B). { 
 	ZERO(R);
 	R.type = A.type; 
-	R.specif = A.specif;
 	R.depth = B;
 }
 parameter_declaration(R) ::= declaration_specifiers(A). { 
 	ZERO(R);
 	R.type = A.type; 
-	R.specif = A.specif;
 }
 
-type_name ::= specifier_qualifier_list.
-type_name ::= specifier_qualifier_list pointer.
+type_name ::= declaration_specifiers.
+type_name ::= declaration_specifiers pointer.
 
 initializer ::= assignment_expression.
-initializer ::= LB initializer_list RB.
-initializer ::= LB initializer_list COM RB.
-
-initializer_list ::= initializer.
-initializer_list ::= initializer_list COM initializer.
 
 statement ::= labeled_statement.
 statement ::= compound_statement.
@@ -406,7 +296,7 @@ compound_statement ::= LB block_item_list RB.
 block_item_list ::= block_item.
 block_item_list ::= block_item_list block_item.
 
-block_item ::= declaration.
+block_item ::= variable_declaration.
 block_item ::= statement.
 
 expression_statement ::= SEM.
@@ -419,8 +309,8 @@ iteration_statement ::= WHILE LP expression RP statement.
 iteration_statement ::= DO statement WHILE LP expression RP SEM.
 iteration_statement ::= FOR LP expression_statement expression_statement RP statement.
 iteration_statement ::= FOR LP expression_statement expression_statement expression RP statement.
-iteration_statement ::= FOR LP declaration expression_statement RP statement.
-iteration_statement ::= FOR LP declaration expression_statement expression RP statement.
+iteration_statement ::= FOR LP variable_declaration expression_statement RP statement.
+iteration_statement ::= FOR LP variable_declaration expression_statement expression RP statement.
 
 jump_statement ::= GOTO ID SEM.
 jump_statement ::= CONTINUE SEM.
@@ -431,10 +321,73 @@ jump_statement ::= RETURN expression SEM.
 translation_unit ::= external_declaration.
 translation_unit ::= translation_unit external_declaration.
 
-external_declaration ::= declaration.
+external_declaration ::= variable_declaration.
+external_declaration ::= function_declaration.
 external_declaration ::= function_definition.
 
-function_definition ::= declaration_specifiers declarator compound_statement.
+function_declarator(R) ::= declarator(A) LP RP. {
+	ZERO(R);
+	R.depth = A.depth;
+	R.name = A.name;
+}
+
+function_declarator(R) ::= declarator(A) LP parameter_list(B) RP. {
+	ZERO(R);
+	R.depth = A.depth;
+	R.name = A.name;
+	R.nparams = B->size();
+	R.params = extract(B);
+}
+function_declarator(R) ::= declarator(A) LP parameter_list(B) COM ELLIPSIS RP. {
+	ZERO(R);
+	R.depth = A.depth;
+	R.name = A.name;
+	R.nparams = B->size();
+	R.params = extract(B);
+	R.variadic = true;
+}
+
+function_declaration ::= declaration_specifiers(A) function_declarator(B) SEM. {
+	sym_t* func = check_signature(A, B);
+	if (func == nullptr)
+	{
+		func = insert(B.name);
+	}
+	else
+	{
+		delete func->params;
+	}
+
+	func->category = CATEGORY_FUNC;
+	func->type = A.type;
+	func->depth = A.depth + B.depth;
+	func->name = B.name;
+	func->nparams = B.nparams;
+	func->params = B.params;
+	func->variadic = B.variadic;
+}
+
+function_definition ::= declaration_specifiers(A) function_declarator(B) compound_statement. {
+	sym_t* func = check_signature(A, B);
+	if (func == nullptr)
+	{
+		func = insert(B.name);
+	}
+	else
+	{
+		delete func->params;
+	}
+
+	func->category = CATEGORY_FUNC;
+	func->type = A.type;
+	func->depth = A.depth + B.depth;
+	func->name = B.name;
+	func->nparams = B.nparams;
+	func->params = B.params;
+	func->variadic = B.variadic;
+	//TODO
+	//func->stmts = nullptr;
+}
 
 %code {
 

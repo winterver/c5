@@ -36,7 +36,7 @@ sym_t* insert(const char* name)
 
 	if (l != nullptr && l->scope == scope)
 	{
-		yyerror("variable redefinition");
+		yyerror("symbol redefinition");
 	}
 
 	l = new sym_t;
@@ -51,27 +51,16 @@ sym_t* insert(const char* name)
 	return l;
 }
 
-sym_t* lookup(char* name)
+sym_t* lookup(const char* name)
 {
 	int hashval = hash(name);
 	sym_t* l = table[hashval];
-	while (l != nullptr && l->name == name) l = l->next;
+	while (l != nullptr && l->name != name) l = l->next;
 	return l;
 }
 
 sym_t* lookup_type(const char* name)
 {
-	int hashval = hash(name);
-	sym_t*l = table[hashval];
-
-	while (l != nullptr)
-	{
-		if (l->specif & SPECIF_TYPEDEF && l->name == name)
-		{
-			return l;
-		}
-		l = l->next;
-	}
 	return nullptr;
 }
 
