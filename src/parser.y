@@ -15,6 +15,7 @@ int globaloffset = 0;
 
 struct decl_specif_t {
 	int type; 
+	int depth; // only used by type_name
 };
 
 struct init_decl_t {
@@ -55,6 +56,18 @@ int get_size(int type, int depth)
 	return 0;
 }
 
+bool convertible(expr_t* B, decl_specif_t A)
+{
+	if (B->depth != A.depth)
+		return false;
+	return true;
+}
+
+int hybrid(int t1, int t2)
+{
+	return t1 > t2 ? t1 : t2;
+}
+
 } // end of %include
 
 %token NUM DEC ID STR.
@@ -75,6 +88,7 @@ int get_size(int type, int depth)
 %token_type { token_value_t }
 %type declaration_specifiers { decl_specif_t }
 %type type_specifier { decl_specif_t }
+%type type_name { decl_specif_t }
 %type pointer { int }
 %type direct_declarator { init_decl_t }
 %type declarator { init_decl_t }
@@ -86,6 +100,22 @@ int get_size(int type, int depth)
 
 %type expression { expr_t* }
 %type primary_expression { expr_t* }
+%type postfix_expression { expr_t* }
+%type unary_expression { expr_t* }
+%type cast_expression { expr_t* }
+%type multiplicative_expression { expr_t* }
+%type additive_expression { expr_t* }
+%type shift_expression { expr_t* }
+%type relational_expression { expr_t* }
+%type equality_expression { expr_t* }
+%type and_expression { expr_t* }
+%type exclusive_or_expression { expr_t* }
+%type inclusive_or_expression { expr_t* }
+%type logical_and_expression { expr_t* }
+%type logical_or_expression { expr_t* }
+%type assignment_expression { expr_t* }
+%type unary_operator { int }
+%type assignment_operator { int }
 
 %destructor init_declarator_list { delete $$; }
 %destructor parameter_list { delete $$; }
@@ -133,93 +163,479 @@ primary_expression(R) ::= STR(A). {
 	R->depth = 1;
 	R->sval = A.sval;
 }
-primary_expression(R) ::= LP expression RP. { /*TODO*/ }
+primary_expression(R) ::= LP expression(A) RP. { R = A; }
 
-postfix_expression ::= primary_expression.
-postfix_expression ::= postfix_expression LS expression RS.
-postfix_expression ::= postfix_expression LP RP.
-postfix_expression ::= postfix_expression LP argument_expression_list RP.
-postfix_expression ::= postfix_expression INC_OP.
-postfix_expression ::= postfix_expression DEC_OP.
+postfix_expression(R) ::= primary_expression(A). { R = A; }
+postfix_expression(R) ::= postfix_expression(A) LS expression(B) RS. {
+	if (A->depth == 0)
+	{
+		yyerror("indexing on non-pointer type");
+	}
+	if (B->depth != 0)
+	{
+		yyerror("attempt to use pointer as RHS");
+	}
 
-argument_expression_list ::= assignment_expression.
-argument_expression_list ::= argument_expression_list COM assignment_expression.
+	int elemsize = get_size(A->type, A->depth-1);
 
-unary_expression ::= postfix_expression.
-unary_expression ::= INC_OP unary_expression.
-unary_expression ::= DEC_OP unary_expression.
-unary_expression ::= unary_operator cast_expression.
-unary_expression ::= SIZEOF unary_expression.
-unary_expression ::= SIZEOF LP type_name RP.
+	expr_t* index = new expr_t;
+	index->category = CATEGORY_COMBINED;
+	index->left = true;
 
-unary_operator ::= AND_OP.
-unary_operator ::= MUL_OP.
-unary_operator ::= ADD_OP.
-unary_operator ::= SUB_OP.
-unary_operator ::= NOT_OP.
-unary_operator ::= LOGNOT.
+	index->type = A->type;
+	index->depth = A->depth;
+	index->op = OP_ADD;
+	index->lhs = A;
+	index->rhs = B;
+	R = index;
+}
+//postfix_expression(R) ::= postfix_expression LP RP.
+//postfix_expression(R) ::= postfix_expression LP argument_expression_list RP.
+postfix_expression(R) ::= postfix_expression(A) INC_OP. {
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = A->type;
+	ex->depth = A->depth;
+	ex->op = OP_POST_INC;
+	ex->lhs = A;
+	R = ex;
+}
+postfix_expression(R) ::= postfix_expression(A) DEC_OP. {
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = A->type;
+	ex->depth = A->depth;
+	ex->op = OP_POST_DEC;
+	ex->lhs = A;
+	R = ex;
+}
 
-cast_expression ::= unary_expression.
-cast_expression ::= LP type_name RP cast_expression.
+//argument_expression_list ::= assignment_expression.
+//argument_expression_list ::= argument_expression_list COM assignment_expression.
 
-multiplicative_expression ::= cast_expression.
-multiplicative_expression ::= multiplicative_expression MUL_OP cast_expression.
-multiplicative_expression ::= multiplicative_expression DIV_OP cast_expression.
-multiplicative_expression ::= multiplicative_expression MOD_OP cast_expression.
+unary_expression(R) ::= postfix_expression(A). { R = A; }
+unary_expression(R) ::= INC_OP unary_expression(A). {
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = A->type;
+	ex->depth = A->depth;
+	ex->op = OP_PRE_INC;
+	ex->lhs = A;
+	R = ex;
+}
+unary_expression(R) ::= DEC_OP unary_expression(A). {
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = A->type;
+	ex->depth = A->depth;
+	ex->op = OP_PRE_DEC;
+	ex->lhs = A;
+	R = ex;
+}
+unary_expression(R) ::= unary_operator(A) cast_expression(B). {
+	if (A == OP_ADD)
+	{
+		R = B;
+	}
+	else
+	{
+		expr_t* ex = new expr_t;
+		ex->category = CATEGORY_COMBINED;
+		ex->type = B->type;
+		ex->op = OP_PRE_DEC;
+		ex->lhs = B;
+		if (A == OP_REF)
+		{
+			ex->depth = B->depth + 1;
+			ex->left = false;
+		}
+		else if (A == OP_DEREF)
+		{
+			if (B->depth == 0)
+			{
+				yyerror("attempted to dereference a non-pointer value");
+			}
+			ex->depth = B->depth - 1;
+			ex->left = true;
+		}
+		else
+		{
+			ex->depth = B->depth;
+			ex->left = false;
+		}
+		R = ex;
+	}
+}
+unary_expression(R) ::= SIZEOF unary_expression(A). {
+	int elemsize = get_size(A->type, A->depth);
+	//TODO recursively free(A)
 
-additive_expression ::= multiplicative_expression.
-additive_expression ::= additive_expression ADD_OP multiplicative_expression.
-additive_expression ::= additive_expression SUB_OP multiplicative_expression.
+	R = new expr_t;
+	R->category = CATEGORY_LITERAL;
+	R->left = false;
 
-shift_expression ::= additive_expression.
-shift_expression ::= shift_expression SHL_OP additive_expression.
-shift_expression ::= shift_expression SHR_OP additive_expression.
+	R->type = TYPE_INT;
+	R->depth = 0;
+	R->ival = elemsize;
+}
+unary_expression(R) ::= SIZEOF LP type_name(A) RP. {
+	R = new expr_t;
+	R->category = CATEGORY_LITERAL;
+	R->left = false;
 
-relational_expression ::= shift_expression.
-relational_expression ::= relational_expression LT_OP shift_expression.
-relational_expression ::= relational_expression GT_OP shift_expression.
-relational_expression ::= relational_expression LE_OP shift_expression.
-relational_expression ::= relational_expression GE_OP shift_expression.
+	R->type = TYPE_INT;
+	R->depth = 0;
+	R->ival = get_size(A.type, A.depth);
+}
 
-equality_expression ::= relational_expression.
-equality_expression ::= equality_expression EQ_OP relational_expression.
-equality_expression ::= equality_expression NE_OP relational_expression.
+unary_operator(R) ::= AND_OP. { R = OP_REF; }
+unary_operator(R) ::= MUL_OP. { R = OP_DEREF; }
+unary_operator(R) ::= ADD_OP. { R = OP_ADD; }
+unary_operator(R) ::= SUB_OP. { R = OP_SUB; }
+unary_operator(R) ::= NOT_OP. { R = OP_NOT; }
+unary_operator(R) ::= LOGNOT. { R = OP_LOGNOT; }
 
-and_expression ::= equality_expression.
-and_expression ::= and_expression AND_OP equality_expression.
+cast_expression(R) ::= unary_expression(A). { R = A; }
+cast_expression(R) ::= LP type_name(A) RP cast_expression(B). {
+	if (convertible(B, A))
+	{
+		B->type = A.type;
+		B->depth = A.depth;
+		R = B;
+	}
+	else
+	{
+		yyerror("bad cast");
+	}
+}
 
-exclusive_or_expression ::= and_expression.
-exclusive_or_expression ::= exclusive_or_expression OR_OP and_expression.
+multiplicative_expression(R) ::= cast_expression(A). { R = A; }
+multiplicative_expression(R) ::= multiplicative_expression(A) MUL_OP cast_expression(B). {
+	if (A->depth != 0 || B->depth != 0)
+	{
+		yyerror("non-add/sub-arithmetic on pointer");
+	}
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = hybrid(A->type, B->type);
+	ex->depth = 0;
+	ex->op = OP_MUL;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
+multiplicative_expression(R) ::= multiplicative_expression(A) DIV_OP cast_expression(B). {
+	if (A->depth != 0 || B->depth != 0)
+	{
+		yyerror("non-add/sub-arithmetic on pointer");
+	}
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = hybrid(A->type, B->type);
+	ex->depth = 0;
+	ex->op = OP_DIV;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
+multiplicative_expression(R) ::= multiplicative_expression(A) MOD_OP cast_expression(B). {
+	if (A->depth != 0 || B->depth != 0)
+	{
+		yyerror("non-add/sub-arithmetic on pointer");
+	}
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = hybrid(A->type, B->type);
+	ex->depth = 0;
+	ex->op = OP_MOD;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
 
-inclusive_or_expression ::= exclusive_or_expression.
-inclusive_or_expression ::= inclusive_or_expression XOR_OP exclusive_or_expression.
+additive_expression(R) ::= multiplicative_expression(A). { R = A; }
+additive_expression(R) ::= additive_expression(A) ADD_OP multiplicative_expression(B). {
+	if (B->depth != 0)
+	{
+		yyerror("attempt to use pointer as RHS");
+	}
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = A->left;
+	ex->type = hybrid(A->type, B->type);
+	ex->depth = A->depth == 0 ? hybrid(A->type, B->type) : A->type;
+	ex->op = OP_ADD;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
+additive_expression(R) ::= additive_expression(A) SUB_OP multiplicative_expression(B). {
+	if (B->depth != 0)
+	{
+		yyerror("attempt to use pointer as RHS");
+	}
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = A->left;
+	ex->type = A->depth == 0 ? hybrid(A->type, B->type) : A->type;
+	ex->depth = A->depth;
+	ex->op = OP_SUB;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
 
-logical_and_expression ::= inclusive_or_expression.
-logical_and_expression ::= logical_and_expression LOGAND inclusive_or_expression.
+shift_expression(R) ::= additive_expression(A). { R = A; }
+shift_expression(R) ::= shift_expression(A) SHL_OP additive_expression(B). {
+	if (A->depth != 0 || B->depth != 0)
+	{
+		yyerror("non-add/sub-arithmetic on pointer");
+	}
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = hybrid(A->type, B->type);
+	ex->depth = 0;
+	ex->op = OP_SHL;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
+shift_expression(R) ::= shift_expression(A) SHR_OP additive_expression(B). {
+	if (A->depth != 0 || B->depth != 0)
+	{
+		yyerror("non-add/sub-arithmetic on pointer");
+	}
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = hybrid(A->type, B->type);
+	ex->depth = 0;
+	ex->op = OP_SHR;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
 
-logical_or_expression ::= logical_and_expression.
-logical_or_expression ::= logical_or_expression LOGOR logical_and_expression.
+relational_expression(R) ::= shift_expression(A). { R = A; }
+relational_expression(R) ::= relational_expression(A) LT_OP shift_expression(B). {
+	if (A->depth != 0 || B->depth != 0)
+	{
+		yyerror("non-add/sub-arithmetic on pointer");
+	}
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = hybrid(A->type, B->type);
+	ex->depth = 0;
+	ex->op = OP_LT;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
+relational_expression(R) ::= relational_expression(A) GT_OP shift_expression(B). {
+	if (A->depth != 0 || B->depth != 0)
+	{
+		yyerror("non-add/sub-arithmetic on pointer");
+	}
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = hybrid(A->type, B->type);
+	ex->depth = 0;
+	ex->op = OP_GT;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
+relational_expression(R) ::= relational_expression(A) LE_OP shift_expression(B). {
+	if (A->depth != 0 || B->depth != 0)
+	{
+		yyerror("non-add/sub-arithmetic on pointer");
+	}
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = hybrid(A->type, B->type);
+	ex->depth = 0;
+	ex->op = OP_LE;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
+relational_expression(R) ::= relational_expression(A) GE_OP shift_expression(B). {
+	if (A->depth != 0 || B->depth != 0)
+	{
+		yyerror("non-add/sub-arithmetic on pointer");
+	}
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = hybrid(A->type, B->type);
+	ex->depth = 0;
+	ex->op = OP_GE;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
 
-conditional_expression ::= logical_or_expression.
-conditional_expression ::= logical_or_expression QUE expression COL conditional_expression.
+equality_expression(R) ::= relational_expression(A). { R = A; }
+equality_expression(R) ::= equality_expression(A) EQ_OP relational_expression(B). {
+	if (A->depth != 0 || B->depth != 0)
+	{
+		yyerror("non-add/sub-arithmetic on pointer");
+	}
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = hybrid(A->type, B->type);
+	ex->depth = 0;
+	ex->op = OP_EQ;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
+equality_expression(R) ::= equality_expression(A) NE_OP relational_expression(B). {
+	if (A->depth != 0 || B->depth != 0)
+	{
+		yyerror("non-add/sub-arithmetic on pointer");
+	}
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = hybrid(A->type, B->type);
+	ex->depth = 0;
+	ex->op = OP_NE;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
 
-assignment_expression ::= conditional_expression.
-assignment_expression ::= unary_expression assignment_operator assignment_expression.
+and_expression(R) ::= equality_expression(A). { R = A; }
+and_expression(R) ::= and_expression(A) AND_OP equality_expression(B). {
+	if (A->depth != 0 || B->depth != 0)
+	{
+		yyerror("non-add/sub-arithmetic on pointer");
+	}
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = hybrid(A->type, B->type);
+	ex->depth = 0;
+	ex->op = OP_AND;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
 
-assignment_operator ::= ASGN_OP.
-assignment_operator ::= MULASGN.
-assignment_operator ::= DIVASGN.
-assignment_operator ::= MODASGN.
-assignment_operator ::= ADDASGN.
-assignment_operator ::= SUBASGN.
-assignment_operator ::= SHLASGN.
-assignment_operator ::= SHRASGN.
-assignment_operator ::= ANDASGN.
-assignment_operator ::= XORASGN.
-assignment_operator ::= ORASGN.
+exclusive_or_expression(R) ::= and_expression(A). { R = A; }
+exclusive_or_expression(R) ::= exclusive_or_expression(A) OR_OP and_expression(B). {
+	if (A->depth != 0 || B->depth != 0)
+	{
+		yyerror("non-add/sub-arithmetic on pointer");
+	}
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = hybrid(A->type, B->type);
+	ex->depth = 0;
+	ex->op = OP_OR;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
 
-expression ::= assignment_expression.
-expression ::= expression COM assignment_expression.
+inclusive_or_expression(R) ::= exclusive_or_expression(A). { R = A; }
+inclusive_or_expression(R) ::= inclusive_or_expression(A) XOR_OP exclusive_or_expression(B). {
+	if (A->depth != 0 || B->depth != 0)
+	{
+		yyerror("non-add/sub-arithmetic on pointer");
+	}
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = hybrid(A->type, B->type);
+	ex->depth = 0;
+	ex->op = OP_XOR;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
+
+logical_and_expression(R) ::= inclusive_or_expression(A). { R = A; }
+logical_and_expression(R) ::= logical_and_expression(A) LOGAND inclusive_or_expression(B). {
+	if (A->depth != 0 || B->depth != 0)
+	{
+		yyerror("non-add/sub-arithmetic on pointer");
+	}
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = hybrid(A->type, B->type);
+	ex->depth = 0;
+	ex->op = OP_LOGAND;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
+
+logical_or_expression(R) ::= logical_and_expression(A). { R = A; }
+logical_or_expression(R) ::= logical_or_expression(A) LOGOR logical_and_expression(B). {
+	if (A->depth != 0 || B->depth != 0)
+	{
+		yyerror("non-add/sub-arithmetic on pointer");
+	}
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = hybrid(A->type, B->type);
+	ex->depth = 0;
+	ex->op = OP_LOGOR;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
+
+assignment_expression(R) ::= unary_expression(A) ASGN_OP logical_or_expression(B). {
+	if (!A->left)
+	{
+		yyerror("attempt to assign to a right value");
+	}
+
+	if (A->depth && B->depth)
+	{
+		if (A->depth != B->depth)
+		{
+			yyerror("pointer depth mismatch");
+		}
+		else
+		{
+			if (A->type != B->type)
+			{
+				yyerror("pointer type mismatch");
+			}
+		}
+	}
+
+	expr_t* ex = new expr_t;
+	ex->category = CATEGORY_COMBINED;
+	ex->left = false;
+	ex->type = A->depth == 0 ? hybrid(A->type, B->type) : A->type;
+	ex->depth = A->depth;
+	ex->op = OP_ASGN;
+	ex->lhs = A;
+	ex->rhs = B;
+	R = ex;
+}
+
+expression(R) ::= assignment_expression(A). { R = A; }
 
 variable_declaration ::= declaration_specifiers(A) init_declarator_list(B) SEM. {
 	for (auto& idl : *B)
@@ -294,10 +710,13 @@ parameter_declaration(R) ::= declaration_specifiers(A) declarator(B). {
 	R.name = B.name;
 }
 
-type_name ::= declaration_specifiers.
-type_name ::= declaration_specifiers pointer.
+type_name(R) ::= declaration_specifiers(A). { R = A; }
+type_name(R) ::= declaration_specifiers(A) pointer(B). {
+	A.depth = B; 
+	R = A; 
+}
 
-initializer ::= assignment_expression.
+initializer ::= logical_or_expression.
 
 statement ::= labeled_statement.
 statement ::= compound_statement.
@@ -308,8 +727,11 @@ statement ::= jump_statement.
 
 labeled_statement ::= ID COL statement.
 
-compound_statement ::= LB RB.
-compound_statement ::= LB block_item_list RB.
+block_begin ::= LB. { next_scope(); }
+block_end ::= RB. { exit_scope(); }
+
+compound_statement ::= block_begin block_end.
+compound_statement ::= block_begin block_item_list block_end.
 
 block_item_list ::= block_item.
 block_item_list ::= block_item_list block_item.

@@ -19,7 +19,7 @@
 #define OP_LOGNOT 5
 #define OP_PRE_INC 6
 #define OP_PRE_DEC 7
-#define OP_POST_INT 8
+#define OP_POST_INC 8
 #define OP_POST_DEC 9
 #define OP_CAST 10
 #define OP_ASGN 11
@@ -31,14 +31,16 @@
 #define OP_AND 17
 #define OP_OR 18
 #define OP_XOR 19
-#define OP_EQ 20
-#define OP_NE 21
-#define OP_LT 22
-#define OP_GT 23
-#define OP_LE 24
-#define OP_GE 25
-#define OP_SHL 26
-#define OP_SHR 27
+#define OP_LOGAND 20
+#define OP_LOGOR 21
+#define OP_EQ 22
+#define OP_NE 23
+#define OP_LT 24
+#define OP_GT 25
+#define OP_LE 26
+#define OP_GE 27
+#define OP_SHL 28
+#define OP_SHR 29
 
 struct sym_t;
 
