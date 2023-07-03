@@ -24,11 +24,12 @@ struct init_decl_t {
 	expr_t* init;
 };
 
+typedef std::vector<init_decl_t> init_decl_list_t;
+
 struct func_decl_t {
 	int depth;
 	const char* name;
-	int nparams;
-	param_t* params;
+	param_list_t* params;
 	bool variadic;
 };
 
@@ -94,10 +95,12 @@ int hybrid(int t1, int t2)
 %type direct_declarator { init_decl_t }
 %type declarator { init_decl_t }
 %type init_declarator { init_decl_t }
-%type init_declarator_list { std::vector<init_decl_t>* }
+%type init_declarator_list { init_decl_list_t* }
 %type parameter_declaration { param_t }
-%type parameter_list { std::vector<param_t>* }
+%type parameter_list { param_list_t* }
 %type function_declarator { func_decl_t }
+
+%destructor init_declarator_list { delete $$; }
 
 %type expression { expr_t* }
 %type primary_expression { expr_t* }
@@ -118,8 +121,14 @@ int hybrid(int t1, int t2)
 %type initializer { expr_t* }
 %type unary_operator { int }
 
-%destructor init_declarator_list { delete $$; }
-%destructor parameter_list { delete $$; }
+%type statement { stmt_list_t* }
+%type compound_statement { stmt_list_t* }
+
+%type labeled_statement { stmt_t } 
+%type expression_statement { stmt_t } 
+%type selection_statement { stmt_t } 
+%type iteration_statement { stmt_t } 
+%type jump_statement { stmt_t } 
 
 %syntax_error { yyerror("syntax error"); }
 
@@ -720,22 +729,34 @@ type_name(R) ::= declaration_specifiers(A) pointer(B). {
 	R = A; 
 }
 
-//initializer(R) ::= logical_or_expression(A).
+initializer(R) ::= logical_or_expression(A).
 
-statement ::= labeled_statement.
-statement ::= compound_statement.
-statement ::= expression_statement.
-statement ::= selection_statement.
-statement ::= iteration_statement.
-statement ::= jump_statement.
+statement(R) ::= labeled_statement(A). {
+	R = new stmt_list_t;
+	R->push_back(A);
+}
+statement(R) ::= compound_statement.
+statement(R) ::= expression_statement.
+statement(R) ::= selection_statement.
+statement(R) ::= iteration_statement.
+statement(R) ::= jump_statement.
 
-labeled_statement ::= ID COL statement.
+labeled_statement(R) ::= ID(A) COL statement(B). {
+	sym_t* label = insert(A.sval);
+	label->category = CATEGORY_LABEL;
+
+	ZERO(R);
+	R.category = CATEGORY_LABEL;
+	R.compound = B;
+}
 
 block_begin ::= LB. { next_scope(); }
 block_end ::= RB. { exit_scope(); }
 
-compound_statement ::= block_begin block_end.
-compound_statement ::= block_begin block_item_list block_end.
+compound_statement(R) ::= block_begin block_end. { R = nullptr; }
+compound_statement(R) ::= block_begin block_item_list block_end. {
+	
+}
 
 block_item_list ::= block_item.
 block_item_list ::= block_item_list block_item.
@@ -778,15 +799,13 @@ function_declarator(R) ::= declarator(A) LP parameter_list(B) RP. {
 	ZERO(R);
 	R.depth = A.depth;
 	R.name = A.name;
-	R.nparams = B->size();
-	R.params = extract(B);
+	R.params = B;
 }
 function_declarator(R) ::= declarator(A) LP parameter_list(B) COM ELLIPSIS RP. {
 	ZERO(R);
 	R.depth = A.depth;
 	R.name = A.name;
-	R.nparams = B->size();
-	R.params = extract(B);
+	R.params = B;
 	R.variadic = true;
 }
 
@@ -801,16 +820,14 @@ function_signature ::= declaration_specifiers(A) function_declarator(B). {
 	func->type = A.type;
 	func->depth = B.depth;
 	func->name = B.name;
-	func->nparams = B.nparams;
 	func->params = B.params;
 	func->variadic = B.variadic;
 
 	next_scope();
 
 	int paramoffset = 8; // bp, retaddr
-	for(int i = 0; i < func->nparams; i++)
+	for(auto p : *func->params)
 	{
-		param_t p = func->params[i];
 		sym_t* param = insert(p.name);
 
 		param->category = CATEGORY_PARAM;

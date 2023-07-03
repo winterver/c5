@@ -1,10 +1,12 @@
 #pragma once
+#include <vector>
 
 // categories for symbols
 #define CATEGORY_GLOBAL 1
 #define CATEGORY_FUNC 2
 #define CATEGORY_PARAM 3
 #define CATEGORY_LOCAL 4
+#define CATEGORY_LABEL 5
 
 // categories for expressions
 #define CATEGORY_COMBINED 1
@@ -70,6 +72,16 @@ struct param_t
 	const char* name;
 };
 
+typedef std::vector<param_t> param_list_t;
+
+struct stmt_t
+{
+	int category;
+	std::vector<stmt_t>* compound;
+};
+
+typedef std::vector<stmt_t> stmt_list_t;
+
 struct sym_t
 {
 	sym_t* next;
@@ -82,8 +94,7 @@ struct sym_t
 	int depth;
 	const char* name;
 	
-	int nparams;
-	param_t* params;
+	param_list_t* params;
 	bool variadic;
 	int localsize; // size of local variables
 };
