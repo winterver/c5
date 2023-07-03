@@ -3,5 +3,6 @@ int a, b;
 
 int main(int argc, char **argv)
 {
-	int argc;
+	int* a;
+	a = &argc;
 }

@@ -21,6 +21,7 @@ struct decl_specif_t {
 struct init_decl_t {
 	int depth;
 	const char* name;
+	expr_t* init;
 };
 
 struct func_decl_t {
@@ -114,8 +115,8 @@ int hybrid(int t1, int t2)
 %type logical_and_expression { expr_t* }
 %type logical_or_expression { expr_t* }
 %type assignment_expression { expr_t* }
+%type initializer { expr_t* }
 %type unary_operator { int }
-%type assignment_operator { int }
 
 %destructor init_declarator_list { delete $$; }
 %destructor parameter_list { delete $$; }
@@ -132,6 +133,10 @@ primary_expression(R) ::= ID(A). {
 	R->left = true;
 
 	auto sym = lookup(A.sval);
+	if (sym == nullptr)
+	{
+		yyerror("symbol not found");
+	}
 	R->type = sym->type;
 	R->depth = sym->depth;
 	R->varref = sym;
@@ -609,18 +614,15 @@ assignment_expression(R) ::= unary_expression(A) ASGN_OP logical_or_expression(B
 		yyerror("attempt to assign to a right value");
 	}
 
-	if (A->depth && B->depth)
+	if (A->depth != B->depth)
 	{
-		if (A->depth != B->depth)
+		yyerror("pointer depth mismatch");
+	}
+	else
+	{
+		if (A->type != B->type)
 		{
-			yyerror("pointer depth mismatch");
-		}
-		else
-		{
-			if (A->type != B->type)
-			{
-				yyerror("pointer type mismatch");
-			}
+			yyerror("pointer type mismatch");
 		}
 	}
 
@@ -676,7 +678,9 @@ init_declarator_list(R) ::= init_declarator_list(A) COM init_declarator(B). {
 }
 
 init_declarator(R) ::= declarator(A). { R = A; }
-init_declarator ::= declarator ASGN_OP initializer. {
+init_declarator(R) ::= declarator(A) ASGN_OP initializer(B). {
+	//A.init = B;
+	//R = A;
 	yyerror("initializer is currently not supported");
 }
 
@@ -716,7 +720,7 @@ type_name(R) ::= declaration_specifiers(A) pointer(B). {
 	R = A; 
 }
 
-initializer ::= logical_or_expression.
+//initializer(R) ::= logical_or_expression(A).
 
 statement ::= labeled_statement.
 statement ::= compound_statement.

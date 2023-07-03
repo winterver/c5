@@ -237,7 +237,7 @@ extern bool declare;
 
 void yyerror(const char* s)
 { 
-	printf("(%d) %s", yylineno, s); 
+	printf("(%d) %s\n", yylineno, s); 
 	exit(-1); 
 }
 
